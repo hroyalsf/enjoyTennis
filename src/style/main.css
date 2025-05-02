@@ -1,0 +1,85 @@
+/* main.css */
+.container {
+    flex: 1;
+    background-color: #f5f5f5;
+    justify-content: center;
+  }
+  
+  .formContainer {
+    padding: 20px;
+  }
+  
+  .input {
+    margin-bottom: 15px;
+  }
+  
+  .buttonContainer {
+    margin-top: 10px;
+  }
+  
+  .button {
+    background-color: #4a90e2;
+    height: 50px;
+    border-radius: 25px;
+  }
+  
+  .outlineButton {
+    border-color: #4a90e2;
+    height: 50px;
+    border-radius: 25px;
+  }
+  
+  .outlineButtonTitle {
+    color: #4a90e2;
+  }
+  
+  .inputPickerContainer {
+    flex-direction: row;
+    align-items: center;
+    border-width: 1px;
+    border-color: black; /* 테두리 색상 검정으로 변경 */
+    border-radius: 5px;
+    padding-left: 10px;
+    margin-bottom: 5px; /* 줄 간격 조정 */
+    height: 50px; /* 높이 조정하여 글자가 잘리지 않도록 */
+    margin-bottom: 15px;
+    margin-left: 2.5%; /* 좌측 여백 조정 */
+    width: 95%; /* 연락처 필드와 동일한 가로 길이 */
+  }
+  
+  .inputInnerContainer {
+    border-width: 1px;
+    border-color: black; /* 테두리 색상 검정으로 변경 */
+    border-radius: 5px;
+    padding-left: 10px;
+    margin-bottom: -20px; /* 줄 간격 조정 */
+    height: 50px; /* 높이 조정하여 글자가 잘리지 않도록 */
+  }
+  
+  .requiredText {
+    color: red;
+    font-size: 12px;
+    margin-bottom: 5px; /* 문구와 필드 간격 조정 */
+    margin-left: 3%; /* 좌측 여백 조정 */
+  }
+  
+  .spacing {
+    height: 20px; /* 여백 추가 */
+  }
+  
+  .checkedText {
+    color: green;
+    margin-bottom: 15px;
+    margin-left: 3%; /* 좌측 여백 조정 */
+    margin-top: -15px; /* 위치 조정 */
+  }
+  
+  .picker {
+    height: 50px;
+    width: 100%; /* 소속팀 필드의 가로 길이 조정 */
+  }
+  
+  .image {
+    width: 100%;
+    height: 100%;
+  }

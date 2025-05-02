@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 인증된 사용자 확인 함수
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // users 컬렉션 규칙
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // teams 컬렉션과 하위 컬렉션 규칙
+    match /teams/{teamId} {
+      allow read, write: if true;
+      
+      // teamCourtSet 서브컬렉션에 대한 규칙
+      match /teamCourtSet/{document=**} {
+        allow read, write: if true;
+      }
+      
+      // playPlan 서브컬렉션에 대한 규칙
+      match /playPlan/{document=**} {
+        allow read, write: if true;
+      }
+    }
+
+    // courtM 컬렉션 규칙
+    match /courtM/{document=**} {
+      allow read: if true;
+    }
+  }
+} 
