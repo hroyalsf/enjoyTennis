@@ -4,10 +4,10 @@
     "slug": "enjoyTennis",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/tennisIcon.png",
+    "icon": "./assets/images/tennisIcon.jpg",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/images/splash.png",
+      "image": "./assets/images/splash.jpg",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -21,7 +21,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/tennisIcon.png",
+        "foregroundImage": "./assets/images/tennisIcon.jpg",
         "backgroundColor": "#ffffff"
       },
       "package": "com.yourcompany.enjoytennis",
