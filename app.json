@@ -7,8 +7,6 @@
     "icon": "./assets/images/tennisIcon.jpg",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/images/splash.jpg",
-      "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "assetBundlePatterns": [
@@ -28,7 +26,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.yourcompany.enjoytennis",
-      "versionCode": 2,
+      "versionCode": 3,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE"
