@@ -1,11 +1,87 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, Alert, SafeAreaView, ScrollView } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { getFirestore, doc, getDoc, collection, getDocs, setDoc } from 'firebase/firestore';
 import { getUserData } from '../services/firebaseService';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import RNPickerSelect from 'react-native-picker-select';
+import { Ionicons } from '@expo/vector-icons';
+import DateTimePickerModal from "react-native-modal-datetime-picker";
 
 const db = getFirestore();
+
+const pickerSelectStyles = {
+  inputIOS: {
+    fontSize: 16,
+    height: 48,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    color: '#222',
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#eee',
+    marginBottom: 8,
+  },
+  inputAndroid: {
+    fontSize: 16,
+    height: 48,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    color: '#222',
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#eee',
+    marginBottom: 8,
+  },
+  iconContainer: {
+    top: 16,
+    right: 12,
+  },
+  placeholder: {
+    color: '#aaa',
+  },
+};
+
+const presetPickerSelectStyles = {
+  inputIOS: {
+    fontSize: 16,
+    height: 48,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    color: '#222',
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#2563eb',
+    marginBottom: 0,
+  },
+  inputAndroid: {
+    fontSize: 16,
+    height: 48,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    color: '#222',
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#2563eb',
+    marginBottom: 0,
+  },
+  iconContainer: {
+    top: 16,
+    right: 12,
+  },
+  placeholder: {
+    color: '#aaa',
+  },
+};
+
+const formatDate = (date) => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
 
 const ScheduleRegisterScreen = ({ route, navigation }) => {
   const { userId } = route.params || {};
@@ -15,8 +91,8 @@ const ScheduleRegisterScreen = ({ route, navigation }) => {
   const [userTeam, setUserTeam] = useState(null);
 
   const [date, setDate] = useState(new Date());
-  const [showPicker, setShowPicker] = useState(false);
-  const [dateText, setDateText] = useState('날짜를 선택하세요');
+  const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
+  const [dateText, setDateText] = useState(formatDate(new Date()));
 
   const [courts, setCourts] = useState([]);
   const [selectedCourtId, setSelectedCourtId] = useState('');
@@ -47,16 +123,14 @@ const ScheduleRegisterScreen = ({ route, navigation }) => {
       if (!userTeam) return;
       try {
         const teamDocRef = doc(db, 'teams', userTeam);
-        const teamDocSnap = await getDoc(teamDocRef);
-        if (teamDocSnap.exists()) {
-          const courtSetColRef = collection(teamDocRef, 'teamCourtSet');
-          const courtSetSnap = await getDocs(courtSetColRef);
-          const sets = [];
-          courtSetSnap.forEach(doc => {
-            sets.push({ id: doc.id, ...doc.data() });
-          });
-          setTeamCourtSets(sets);
-        }
+        if (!teamDocRef) return;
+        const courtSetColRef = collection(teamDocRef, 'teamCourtSet');
+        const courtSetSnap = await getDocs(courtSetColRef);
+        const sets = [];
+        courtSetSnap.forEach(doc => {
+          sets.push({ id: doc.id, ...doc.data() });
+        });
+        setTeamCourtSets(sets);
       } catch (error) {
         console.error('Error fetching team court sets:', error);
       }
@@ -110,17 +184,13 @@ const ScheduleRegisterScreen = ({ route, navigation }) => {
     }
   }, [selectedCourtId, courts]);
 
-  const onChange = (event, selectedDate) => {
-    setShowPicker(Platform.OS === 'ios');
-    if (selectedDate) {
-      setDate(selectedDate);
-      const formattedDate = selectedDate.toISOString().split('T')[0];
-      setDateText(formattedDate);
-    }
-  };
+  const showDatepicker = () => setDatePickerVisibility(true);
+  const hideDatePicker = () => setDatePickerVisibility(false);
 
-  const showDatepicker = () => {
-    setShowPicker(true);
+  const handleConfirm = (selectedDate) => {
+    setDate(selectedDate);
+    setDateText(formatDate(selectedDate));
+    hideDatePicker();
   };
 
   const handleRegister = async () => {
@@ -148,10 +218,18 @@ const ScheduleRegisterScreen = ({ route, navigation }) => {
       // 날짜 형식 변환 (YYYYMMDD)
       const formattedDate = dateText.replace(/-/g, '');
       
-      // Firebase에 데이터 저장
+      // Firebase에 데이터 저장 전, 중복 체크
       const teamDocRef = doc(db, 'teams', userTeam);
       const playPlanDocRef = doc(collection(teamDocRef, 'playPlan'), formattedDate);
       
+      // 1. 이미 등록된 날짜가 있는지 확인
+      const playPlanSnap = await getDoc(playPlanDocRef);
+      if (playPlanSnap.exists()) {
+        Alert.alert('중복 일정', '이미 등록된 날짜입니다.');
+        return;
+      }
+      
+      // 2. 등록 진행
       await setDoc(playPlanDocRef, {
         courtName: selectedCourt.courtName,
         courtNum: courtNum,
@@ -169,77 +247,118 @@ const ScheduleRegisterScreen = ({ route, navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>팀 코트 세트</Text>
-      <View style={styles.pickerContainer}>
-        <Picker
-          selectedValue={selectedCourtSetId}
-          onValueChange={setSelectedCourtSetId}
-          style={styles.picker}
-        >
-          <Picker.Item label="선택하세요" value="" />
-          {teamCourtSets.map(set => (
-            <Picker.Item key={set.id} label={set.courtName} value={set.id} />
-          ))}
-        </Picker>
-      </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* 팀 코트 세트 프리셋 카드 */}
+        <View style={styles.presetCard}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+            <Ionicons name="sparkles-outline" size={20} color="#2563eb" style={{ marginRight: 6 }} />
+            <Text style={styles.presetLabel}>팀 코트 세트</Text>
+          </View>
+          <RNPickerSelect
+            onValueChange={(value) => {
+              setSelectedCourtSetId(value);
+              if (!value) {
+                setSelectedCourtId('');
+                setCourtAddr('');
+                setCourtNum('');
+                setCourtTime('');
+              }
+            }}
+            items={teamCourtSets.map(set => ({
+              label: set.courtName,
+              value: set.id
+            }))}
+            value={selectedCourtSetId}
+            placeholder={{ label: '선택하세요', value: '' }}
+            style={presetPickerSelectStyles}
+            useNativeAndroidPickerStyle={false}
+            Icon={() => <Ionicons name="chevron-down" size={20} color="#aaa" />}
+          />
+          <Text style={styles.presetDesc}>선택 시 아래 정보가 자동으로 채워집니다.</Text>
+        </View>
 
-      <Text style={styles.label}>날짜</Text>
-      <TouchableOpacity onPress={showDatepicker} style={styles.input}>
-        <Text>{dateText}</Text>
-      </TouchableOpacity>
-      {showPicker && (
-        <DateTimePicker
-          testID="dateTimePicker"
-          value={date}
+        {/* 나머지 입력란 */}
+        <Text style={styles.label}>날짜</Text>
+        <TouchableOpacity onPress={showDatepicker} style={styles.input}>
+          <Text>{dateText}</Text>
+        </TouchableOpacity>
+        <DateTimePickerModal
+          isVisible={isDatePickerVisible}
           mode="date"
-          is24Hour={true}
-          onChange={onChange}
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onConfirm={handleConfirm}
+          onCancel={hideDatePicker}
+          date={date}
+          locale="ko"
         />
-      )}
 
-      <Text style={styles.label}>코트</Text>
-      <View style={styles.pickerContainer}>
-        <Picker
-          selectedValue={selectedCourtId}
-          onValueChange={setSelectedCourtId}
-          style={styles.picker}
-        >
-          <Picker.Item label="선택하세요" value="" />
-          {courts.map(court => (
-            <Picker.Item key={court.id} label={court.courtName} value={court.id} />
-          ))}
-        </Picker>
+        <Text style={styles.label}>코트</Text>
+        <RNPickerSelect
+          onValueChange={(value) => {
+            setSelectedCourtId(value);
+            if (!value) {
+              setCourtAddr('');
+              setCourtNum('');
+              setCourtTime('');
+            } else {
+              const selected = courts.find(court => court.id === value);
+              if (selected) {
+                setCourtAddr(selected.courtAddr || '');
+              }
+            }
+          }}
+          items={courts.map(court => ({
+            label: court.courtName,
+            value: court.id
+          }))}
+          value={selectedCourtId}
+          placeholder={{ label: '선택하세요', value: '' }}
+          style={pickerSelectStyles}
+          useNativeAndroidPickerStyle={false}
+          Icon={() => <Ionicons name="chevron-down" size={20} color="#aaa" />}
+        />
+
+        <Text style={styles.label}>코트 주소</Text>
+        <TextInput 
+          style={[styles.input, { backgroundColor: '#eee' }]} 
+          value={courtAddr} 
+          editable={false} 
+        />
+
+        <Text style={styles.label}>코트 번호</Text>
+        <TextInput 
+          style={styles.input} 
+          value={courtNum} 
+          onChangeText={setCourtNum}
+          placeholder="코트 번호를 입력하세요"
+        />
+
+        <Text style={styles.label}>코트 시간</Text>
+        <TextInput 
+          style={styles.input} 
+          value={courtTime} 
+          onChangeText={setCourtTime}
+          placeholder="코트 시간을 입력하세요"
+        />
+      </ScrollView>
+      <View style={{
+        position: 'absolute',
+        left: 0, right: 0, bottom: 0,
+        backgroundColor: '#fff',
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        borderTopWidth: 1,
+        borderColor: '#eee',
+      }}>
+        <TouchableOpacity style={styles.registerButton} onPress={handleRegister}>
+          <Text style={styles.registerButtonText}>등록</Text>
+        </TouchableOpacity>
       </View>
-
-      <Text style={styles.label}>코트 주소</Text>
-      <TextInput 
-        style={[styles.input, { backgroundColor: '#eee' }]} 
-        value={courtAddr} 
-        editable={false} 
-      />
-
-      <Text style={styles.label}>코트 번호</Text>
-      <TextInput 
-        style={styles.input} 
-        value={courtNum} 
-        onChangeText={setCourtNum}
-        placeholder="코트 번호를 입력하세요"
-      />
-
-      <Text style={styles.label}>코트 시간</Text>
-      <TextInput 
-        style={styles.input} 
-        value={courtTime} 
-        onChangeText={setCourtTime}
-        placeholder="코트 시간을 입력하세요"
-      />
-
-      <TouchableOpacity style={styles.registerButton} onPress={handleRegister}>
-        <Text style={styles.registerButtonText}>등록</Text>
-      </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -254,14 +373,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 4,
   },
-  pickerContainer: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 6,
-    marginBottom: 8,
-  },
-  picker: {
-    height: 50,
-  },
   input: {
     backgroundColor: '#f5f5f5',
     padding: 12,
@@ -270,16 +381,38 @@ const styles = StyleSheet.create({
   },
   registerButton: {
     backgroundColor: '#007AFF',
-    padding: 15,
+    paddingVertical: 12,
+    paddingHorizontal: 0,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 30,
+    marginTop: 0,
+    marginBottom: 0,
   },
   registerButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  presetCard: {
+    backgroundColor: '#e8f0fe',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 18,
+    shadowColor: '#2563eb',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  presetLabel: {
+    fontWeight: 'bold',
+    fontSize: 16,
+    color: '#2563eb',
+  },
+  presetDesc: {
+    color: '#2563eb',
+    fontSize: 13,
+    marginTop: 4,
+    marginLeft: 2,
   },
 });
 

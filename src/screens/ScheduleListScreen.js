@@ -17,10 +17,14 @@ import {
   updateDoc,
   arrayUnion,
   arrayRemove,
-  getDoc
+  getDoc,
+  deleteDoc
 } from 'firebase/firestore';
 import { getUserData } from '../services/firebaseService';
 import { Icon } from 'react-native-elements';
+import { Picker } from '@react-native-picker/picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const db = getFirestore();
 
@@ -29,7 +33,20 @@ const ScheduleListScreen = ({ route }) => {
   const [schedules, setSchedules] = useState([]);
   const [userTeam, setUserTeam] = useState('');
   const [userName, setUserName] = useState('');
+  const [authGroup, setAuthGroup] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+
+  // 년/월 콤보박스 상태
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+
+  // 년/월 상태는 selectedDate에서 파생
+  const selectedYear = selectedDate.getFullYear().toString();
+  const selectedMonth = (selectedDate.getMonth() + 1).toString().padStart(2, '0');
+
+  // 년/월 콤보박스용 데이터
+  const years = Array.from({ length: 5 }, (_, i) => (selectedDate.getFullYear() - 2 + i).toString());
+  const months = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'));
 
   const loadUserData = async () => {
     try {
@@ -37,6 +54,7 @@ const ScheduleListScreen = ({ route }) => {
       if (userData) {
         setUserTeam(userData.userTeam);
         setUserName(userData.userName);
+        setAuthGroup(userData.authGroup || '');
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -44,19 +62,24 @@ const ScheduleListScreen = ({ route }) => {
     }
   };
 
-  const loadSchedules = async () => {
+  const loadSchedules = async (dateObj = selectedDate) => {
     if (!userTeam) return;
-
+    const year = dateObj.getFullYear().toString();
+    const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
     try {
       const playPlanRef = collection(doc(db, 'teams', userTeam), 'playPlan');
       const querySnapshot = await getDocs(playPlanRef);
       
       const scheduleData = [];
       querySnapshot.forEach((doc) => {
-        scheduleData.push({
-          id: doc.id,
-          ...doc.data()
-        });
+        // id는 YYYYMMDD 형식
+        const id = doc.id;
+        if (id.startsWith(year + month)) {
+          scheduleData.push({
+            id,
+            ...doc.data()
+          });
+        }
       });
 
       // 날짜순으로 정렬
@@ -128,6 +151,42 @@ const ScheduleListScreen = ({ route }) => {
     }
   };
 
+  // 달력에서 날짜 선택 시
+  const onChangeDate = (event, date) => {
+    setShowDatePicker(false);
+    if (date) {
+      setSelectedDate(date);
+      // 날짜 선택 시 바로 일정 조회
+      loadSchedules(date);
+    }
+  };
+
+  // 일정 삭제
+  const handleDelete = async (scheduleId) => {
+    Alert.alert(
+      '일정 삭제',
+      '정말로 이 일정을 삭제하시겠습니까?',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '삭제',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const scheduleRef = doc(db, 'teams', userTeam, 'playPlan', scheduleId);
+              await deleteDoc(scheduleRef);
+              await loadSchedules();
+              Alert.alert('삭제 완료', '일정이 삭제되었습니다.');
+            } catch (error) {
+              console.error('Error deleting schedule:', error);
+              Alert.alert('오류', '일정 삭제에 실패했습니다.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const renderItem = ({ item }) => {
     const isAttending = (item.members || []).some(member => member.userId === userId);
     const attendees = (item.members || []).map(member => member.userName).join(', ');
@@ -135,6 +194,16 @@ const ScheduleListScreen = ({ route }) => {
 
     return (
       <View style={styles.card}>
+        {/* 삭제 버튼: 관리자만 표시 */}
+        {authGroup.startsWith('ADM') && (
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() => handleDelete(item.id)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.deleteButtonText}>×</Text>
+          </TouchableOpacity>
+        )}
         <View style={styles.dateContainer}>
           <Icon
             name="calendar"
@@ -231,25 +300,52 @@ const ScheduleListScreen = ({ route }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={schedules}
-        renderItem={renderItem}
-        keyExtractor={item => item.id}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#007AFF"
-          />
-        }
-        contentContainerStyle={styles.listContainer}
-      />
-    </View>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <View style={styles.container}>
+        {/* 년/월 콤보박스 + 검색 버튼 */}
+        <View style={styles.calendarRow}>
+          <TouchableOpacity
+            style={styles.calendarButton}
+            onPress={() => setShowDatePicker(true)}
+            activeOpacity={0.8}
+          >
+            <Icon name="calendar" type="feather" size={20} color="#007AFF" />
+            <Text style={styles.calendarButtonText}>
+              {selectedYear}년 {selectedMonth}월
+            </Text>
+          </TouchableOpacity>
+          {showDatePicker && (
+            <DateTimePicker
+              value={selectedDate}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={onChangeDate}
+            />
+          )}
+        </View>
+        <FlatList
+          data={schedules}
+          renderItem={renderItem}
+          keyExtractor={item => item.id}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#007AFF"
+            />
+          }
+          contentContainerStyle={styles.listContainer}
+        />
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
@@ -339,6 +435,60 @@ const styles = StyleSheet.create({
     color: '#999',
     fontSize: 16,
     fontWeight: '600',
+  },
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    marginBottom: 8,
+  },
+  calendarButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  calendarButtonText: {
+    marginLeft: 8,
+    fontSize: 18,
+    color: '#007AFF',
+    fontWeight: 'bold',
+  },
+  deleteButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 10,
+    backgroundColor: '#ff3b30',
+    borderRadius: 16,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: 'bold',
+    lineHeight: 28,
+  },
+  calendarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 24 : 8,
+    marginBottom: 8,
+    zIndex: 10,
   },
 });
 

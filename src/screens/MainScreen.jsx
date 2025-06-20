@@ -12,11 +12,26 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from 'react-native-elements';
 import { DrawerLayout } from 'react-native-gesture-handler';
 import { getUserData } from '../services/firebaseService';
+import { getDoc, doc } from 'firebase/firestore';
+import { db } from '../services/firebaseService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MainScreen = ({ navigation, route }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [authName, setAuthName] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
   let drawerRef = React.useRef(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      if (!route.params?.userId) return;
+      const userData = await getUserData(route.params.userId);
+      setUser(userData);
+    };
+    fetchUser();
+  }, [route.params?.userId]);
 
   useEffect(() => {
     const checkUserAuth = async () => {
@@ -25,6 +40,14 @@ const MainScreen = ({ navigation, route }) => {
         const userData = await getUserData(route.params?.userId);
         if (userData && userData.authGroup) {
           setIsAdmin(userData.authGroup.startsWith('ADM'));
+          let authNameValue = '';
+          if (typeof userData.authGroup === 'string' && userData.authGroup.trim() !== '') {
+            const authDoc = await getDoc(doc(db, 'authGroup', userData.authGroup));
+            if (authDoc.exists()) {
+              authNameValue = authDoc.data().authName;
+            }
+          }
+          setAuthName(authNameValue);
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -45,8 +68,9 @@ const MainScreen = ({ navigation, route }) => {
         },
         {
           text: "확인",
-          onPress: () => {
+          onPress: async () => {
             // 로그인 정보 초기화 및 로그인 화면으로 이동
+            await AsyncStorage.removeItem('autoLogin');
             navigation.reset({
               index: 0,
               routes: [{ name: 'Login' }],
@@ -58,9 +82,29 @@ const MainScreen = ({ navigation, route }) => {
   };
 
   const getMenuItems = () => {
+    // userStat이 100이면 로그아웃만 보이게
+    if (user && user.userStat === 100) {
+      return [
+        {
+          text: '로그아웃',
+          icon: 'log-out',
+          onPress: handleLogout
+        }
+      ];
+    }
+
     const baseMenuItems = [
       { text: '내 정보', icon: 'user', path: 'Profile' },
     ];
+
+    if (user && (user.authGroup === 'ADM00' || user.authGroup === 'ADM01')) {
+      baseMenuItems.push({
+        text: '클럽 관리',
+        icon: 'settings',
+        path: 'ClubManager',
+        params: { userId: route.params?.userId, userTeam: user.userTeam }
+      });
+    }
 
     // 관리자인 경우에만 일정 등록 메뉴 추가
     if (isAdmin) {
@@ -77,6 +121,14 @@ const MainScreen = ({ navigation, route }) => {
       text: '일정 관리', 
       icon: 'calendar', 
       path: 'ScheduleList',
+      params: { userId: route.params?.userId }
+    });
+
+    // === 게임관리 메뉴 추가 ===
+    baseMenuItems.push({
+      text: '게임 관리',
+      icon: 'grid', // 원하는 아이콘(feather 기준)
+      path: 'GameManager',
       params: { userId: route.params?.userId }
     });
 
@@ -99,7 +151,9 @@ const MainScreen = ({ navigation, route }) => {
             style={styles.menuItem}
             onPress={() => {
               drawerRef.current?.closeDrawer();
-              if (item.onPress) {
+              if (item.text === '내 정보') {
+                navigation.navigate('Profile', { userId: route.params?.userId });
+              } else if (item.onPress) {
                 item.onPress();
               } else {
                 navigation.navigate(item.path, item.params);
@@ -130,14 +184,14 @@ const MainScreen = ({ navigation, route }) => {
             >
               <Icon name="menu" type="feather" size={24} color="#333" />
             </TouchableOpacity>
-            <Text style={styles.title}>Enjoy Tennis</Text>
+            <Text style={styles.title}>테니스클럽</Text>
           </View>
           <ImageBackground
             source={require('../../assets/images/tennis-court.jpg')}
             style={styles.background}
             resizeMode="cover"
           >
-            <Text style={styles.welcomeText}>Welcome to Enjoy Tennis</Text>
+            <Text style={styles.welcomeText}>Welcome to 테니스클럽</Text>
           </ImageBackground>
         </View>
       </DrawerLayout>
@@ -168,6 +222,8 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginLeft: 16,
+    lineHeight: 24,
+    paddingTop: 2,
   },
   background: {
     flex: 1,

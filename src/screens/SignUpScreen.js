@@ -1,11 +1,53 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Alert } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Alert, ScrollView, KeyboardAvoidingView, Platform, TextInput, BackHandler } from 'react-native';
 import { Input, Button, Icon } from 'react-native-elements';
 import { Picker } from '@react-native-picker/picker'; // 수정된 부분
 import { getUserData, signUpUser, getTeams, getTeamData, updateTeamMemberCount } from '../services/firebaseService'; // 서비스 호출
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import RNPickerSelect from 'react-native-picker-select';
+import { doc, updateDoc, increment } from 'firebase/firestore';
+import { db } from '../services/firebaseService';
+import { getAuth } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 //import styles from '../style/main.css'; // 스타일 import
 
-function SignUpScreen({ navigation }) { 
+const pickerSelectStyles = {
+  inputIOS: {
+    fontSize: 16,
+    height: 48,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    color: '#222',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#eee',
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  inputAndroid: {
+    fontSize: 16,
+    height: 48,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    color: '#222',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#eee',
+    elevation: 2,
+  },
+  iconContainer: {
+    top: 16,
+    right: 12,
+  },
+  placeholder: {
+    color: '#aaa',
+  },
+};
+
+function SignUpScreen({ navigation, route }) { 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -14,16 +56,15 @@ function SignUpScreen({ navigation }) {
   
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [team, setTeam] = useState(''); // 소속팀 상태 추가
+  const [team, setTeam] = useState('');
   const [ntrp, setNtrp] = useState('');
-  const [expYears, setExpYears] = useState(''); // 구력 값을 위한 상태 추가
-  const [userId, setUserId] = useState('');
-  const [idChecked, setIdChecked] = useState(false);
-  const [isIdAvailable, setIsIdAvailable] = useState(false); // ID 사용 가능 상태 추가
-  const [teams, setTeams] = useState([]); // 소속팀 목록 상태 추가
+  const [expYears, setExpYears] = useState('');
+  const [teams, setTeams] = useState([]);
+  const [error, setError] = useState('');
+  const [gender, setGender] = useState('');
+  const [pendingPremium, setPendingPremium] = useState(false);
+  const [alertedPremium, setAlertedPremium] = useState(false);
 
-  // 각 입력 필드에 대한 ref 생성
-  const userIdRef = useRef(null);
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
   const confirmPasswordRef = useRef(null);
@@ -32,6 +73,8 @@ function SignUpScreen({ navigation }) {
   const expYearsRef = useRef(null);
   const teamRef = useRef(null);
   const nameRef = useRef(null);
+
+  const isPremium = route?.params?.isPremium;
 
   useEffect(() => {
     const fetchTeams = async () => {
@@ -43,6 +86,39 @@ function SignUpScreen({ navigation }) {
       }
     };
     fetchTeams();
+  }, []);
+
+  useEffect(() => {
+    const onBackPress = () => true; // true를 반환하면 뒤로가기 무시
+    BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
+  }, []);
+
+  useEffect(() => {
+    if (isPremium) {
+      AsyncStorage.setItem('pendingPremiumSignUp', 'true');
+    }
+  }, [isPremium]);
+
+  useEffect(() => {
+    const checkPremiumPending = async () => {
+      const pending = await AsyncStorage.getItem('pendingPremiumSignUp');
+      if (pending === 'true' && !isPremium && !alertedPremium) {
+        setAlertedPremium(true);
+        Alert.alert('프리미엄 회원가입 안내', '프리미엄 소속팀 등록이 완료되어 프리미엄 회원가입으로 진행됩니다.');
+      } else if (pending === 'true' && !isPremium && alertedPremium) {
+        // alert 후에는 pendingPremiumSignUp을 삭제하고 일반 회원가입으로 전환
+        await AsyncStorage.removeItem('pendingPremiumSignUp');
+        setPendingPremium(false);
+      }
+    };
+    checkPremiumPending();
+  }, [isPremium, alertedPremium]);
+
+  useEffect(() => {
+    AsyncStorage.getItem('pendingPremiumSignUp').then(val => {
+      setPendingPremium(val === 'true');
+    });
   }, []);
 
   const handlePhoneChange = (text) => {
@@ -79,51 +155,24 @@ function SignUpScreen({ navigation }) {
     setConfirmPassword(filteredText);
   };
 
-  const handleIdCheck = async () => {
-    if (!userId) {
-      Alert.alert('오류', 'ID를 입력해주세요.'); // ID가 비어있을 때 메시지 출력
-      setIsIdAvailable(false); // ID 사용 가능 문구 히든 처리
-      return; // 종료
-    }
-
-    try {
-      const userData = await getUserData(userId); // 서비스 호출
-      if (userData) {
-        Alert.alert('오류', 'ID가 이미 존재합니다.'); // 중복인 경우 메시지 출력
-        setIsIdAvailable(false); // ID 사용 가능 문구 히든 처리
-      } else {
-        Alert.alert('ID 사용 가능');
-        setIdChecked(true);
-        setIsIdAvailable(true); // ID 사용 가능 상태 설정
-      }
-    } catch (error) {
-      console.error("ID 체크 오류:", error);
-      Alert.alert("ID 체크 중 오류가 발생했습니다.");
-      setIsIdAvailable(false); // ID 사용 가능 문구 히든 처리
-    }
-  };
-
   const handleSignUp = async () => {
-    // 필수값 체크
-    if (!userId || !password || !confirmPassword || !team) {
-      Alert.alert('오류', '아이디, 비밀번호, 소속팀은 필수 항목입니다.');
+    if (!email || !password || !confirmPassword || !team || !gender) {
+      setError('모든 항목을 입력해주세요.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('비밀번호가 일치하지 않습니다.');
       return;
     }
 
-    if (password !== confirmPassword) {
-      Alert.alert('오류', '비밀번호가 일치하지 않습니다.');
-      return;
-    }
-    if (!idChecked) {
-      Alert.alert('오류', 'ID 중복 체크를 해주세요.');
-      return;
-    }
-   
-    // 팀의 잔여 회원 수 체크
+    // 팀의 잔여 회원 수 체크 (memberCnt_rest만)
     try {
       const teamData = await getTeamData(team); // 팀 데이터 가져오기
-      if (teamData.memberCnt_Free === 0 && teamData.memberCnt_rest === 0) {
-        Alert.alert('오류', '해당 팀에 잔여 회원수가 없습니다. 회원 가입하려면 잔여 회원수를 확보해주세요.');
+      if (teamData.memberCnt_rest === 0) {
+        Alert.alert(
+          '오류',
+          '해당 클럽에 잔여 회원수가 없습니다.\n클럽 리더(회장)에게 잔여 회원수 추가를 요청해주세요.'
+        );
         return;
       }
     } catch (error) {
@@ -132,278 +181,330 @@ function SignUpScreen({ navigation }) {
       return;
     }
   
-    // 사용자 데이터 객체 생성
+    // 실제 가입 직전에 pendingPremiumSignUp 값을 직접 체크
+    let premiumFlag = isPremium;
+    try {
+      const pending = await AsyncStorage.getItem('pendingPremiumSignUp');
+      if (pending === 'true') premiumFlag = true;
+    } catch (e) {}
+
     const userData = {
-      userPw: password, // 비밀번호
-      userEmail: email, // 이메일
-      userName: name, // 이름
-      userHP: phone, // 연락처
-      userTeam: team, // 소속팀
-      NTRP: ntrp, // 구력(NTRP)
-      expYears: expYears, // 구력 값 저장
-      authGroup: "BAS01", // authGroup 값
+      userName: name,
+      userGender: gender,
+      userHP: phone,
+      userTeam: team,
+      NTRP: ntrp,
+      expYears: expYears,
+      authGroup: premiumFlag ? "ADM01" : "BAS01",
+      userStat: premiumFlag ? 200 : 100,
     };
   
     try {
-      await signUpUser(userId, userData); // userId를 문서 이름으로 사용
-      Alert.alert('성공', '회원가입이 완료되었습니다.');
-
-      // 팀 잔여 회원 수 차감 서비스 호출
+      await signUpUser(email, password, userData);
+      const exp = parseFloat(expYears) || 0;
+      const abilityValue = Math.round((exp * 100) * 10) / 10;
+      const abilityInt = Math.round(abilityValue);
+      const auth = getAuth();
+      const userId = auth.currentUser?.uid;
+      if (userId) {
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, { ability: increment(abilityInt) });
+      }
+      // 회원가입 성공 시에는 무조건 pendingPremiumSignUp 삭제
+      await AsyncStorage.removeItem('pendingPremiumSignUp');
+      // userStat 값에 따라 안내 문구 분기
+      if ((userData.userStat || 0) === 100) {
+        Alert.alert('안내', '회원가입 요청이 완료되었습니다.\n클럽 리더 승인 후 이용하실 수 있습니다.');
+      } else {
+        Alert.alert('성공', '회원가입이 완료되었습니다.');
+      }
       await updateTeamMemberCount(team);
-
-      navigation.navigate('Login'); // 로그인 화면으로 이동
+      navigation.navigate('Login');
     } catch (error) {
-      Alert.alert('오류', '회원가입 중 오류가 발생했습니다.');
+      if (error.code === 'auth/email-already-in-use') {
+        Alert.alert('오류', '이미 사용 중인 이메일입니다.');
+      } else if (error.code === 'auth/invalid-email') {
+        Alert.alert('오류', '이메일 형식이 올바르지 않습니다.');
+      } else if (error.code === 'auth/weak-password') {
+        Alert.alert('오류', '비밀번호는 6자 이상이어야 합니다.');
+      } else {
+        Alert.alert('오류', '회원가입 중 오류가 발생했습니다.');
+      }
     }
   };
 
-
-
   return (
-    <View style={styles.container}>
-      <View style={styles.formContainer}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: '#f7f7f7' }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView
+        contentContainerStyle={[styles.container, { paddingBottom: Platform.OS === 'ios' ? 60 : 24 }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={styles.title}>회원가입</Text>
+
+        {/* 1. 이메일 */}
         <View style={styles.inputContainer}>
-          <Input
-            placeholder="아이디"
-            value={userId} // New input for ID
-            onChangeText={setUserId}
-            containerStyle={styles.input}
-            leftIcon={<Icon name="user" type="feather" size={20} color="#888" />}
-            inputContainerStyle={styles.inputInnerContainer} // 좌측 시작점 동일하게
-            onSubmitEditing={() => passwordRef.current.focus()} // 다음 필드로 이동
-            ref={userIdRef}
-          />
-          <Button
-            title="ID 중복체크"
-            onPress={handleIdCheck}
-            buttonStyle={styles.checkButton}
-            containerStyle={styles.checkButtonContainer}
+          <Ionicons name="mail-outline" size={20} color="#aaa" style={styles.icon} />
+          <TextInput
+            style={styles.input}
+            placeholder="이메일"
+            placeholderTextColor="#aaa"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            ref={emailRef}
           />
         </View>
-        
-        {/* ID 사용 가능 메시지 조건부 렌더링 */}
-        {isIdAvailable && <Text style={styles.checkedText}>ID 사용 가능</Text>} 
-        
-        {/* 비밀번호 필드 */}
-        <Input
-          placeholder="비밀번호"
-          value={password}
-          onChangeText={handlePasswordChange}
-          secureTextEntry={!showPassword}
-          autoCapitalize="none"
-          containerStyle={styles.input}
-          leftIcon={<Icon name="lock" type="feather" size={20} color="#888" />}
-          rightIcon={
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              <Icon name={showPassword ? 'eye-off' : 'eye'} type="feather" size={20} color="#888" />
-            </TouchableOpacity>
-          }
-          inputContainerStyle={styles.inputInnerContainer} // 줄 간격 동일하게
-          onSubmitEditing={() => confirmPasswordRef.current.focus()} // 다음 필드로 이동
-          ref={passwordRef}
-        />
-        
-        <Input
-          placeholder="비밀번호 확인"
-          value={confirmPassword}
-          onChangeText={handleConfirmPasswordChange}
-          secureTextEntry={!showConfirmPassword}
-          autoCapitalize="none"
-          containerStyle={styles.input}
-          leftIcon={<Icon name="lock" type="feather" size={20} color="#888" />}
-          rightIcon={
-            <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-              <Icon name={showConfirmPassword ? 'eye-off' : 'eye'} type="feather" size={20} color="#888" />
-            </TouchableOpacity>
-          }
-          inputContainerStyle={styles.inputInnerContainer} // 줄 간격 동일하게
-          onSubmitEditing={() => emailRef.current.focus()} // 다음 필드로 이동
-          ref={confirmPasswordRef}
-        />
 
-         {/* 소속팀 콤보박스 추가 */}
-         <View style={styles.inputPickerContainer}>
-          <Picker
-            selectedValue={team}
-            onValueChange={(itemValue) => setTeam(itemValue)}
-            style={styles.picker}
-            ref={teamRef}
-          >
-            <Picker.Item label="소속팀 선택" value="" />
-            {teams.map((team) => (
-              <Picker.Item key={team.id} label={team.teamName} value={team.id} />
-            ))}
-          </Picker>
+        {/* 2. 비밀번호 */}
+        <View style={styles.inputContainer}>
+          <MaterialIcons name="lock-outline" size={20} color="#aaa" style={styles.icon} />
+          <TextInput
+            style={styles.input}
+            placeholder="비밀번호"
+            placeholderTextColor="#aaa"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            ref={passwordRef}
+            autoCorrect={false}
+            autoCapitalize="none"
+            textContentType="password"
+          />
         </View>
 
-        {/* 필수 입력 항목 안내 문구 */}
-        <Text style={styles.requiredText}>* 아이디, 비밀번호, 소속팀은 필수 항목입니다.</Text>
+        {/* 3. 비밀번호 확인 */}
+        <View style={styles.inputContainer}>
+          <MaterialIcons name="lock-outline" size={20} color="#aaa" style={styles.icon} />
+          <TextInput
+            style={styles.input}
+            placeholder="비밀번호 확인"
+            placeholderTextColor="#aaa"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+            ref={confirmPasswordRef}
+            autoCorrect={false}
+            autoCapitalize="none"
+            textContentType="password"
+          />
+        </View>
 
-        <View style={styles.spacing} />
+        {/* 4. 이름 */}
+        <View style={styles.inputContainer}>
+          <Ionicons name="person" size={20} color="#aaa" style={styles.icon} />
+          <TextInput
+            style={styles.input}
+            placeholder="이름"
+            placeholderTextColor="#aaa"
+            value={name}
+            onChangeText={handleNameChange}
+            ref={nameRef}
+          />
+        </View>
 
-        <Input
-          placeholder="이메일"
-          value={email}
-          onChangeText={handleEmailChange}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          containerStyle={styles.input}
-          inputContainerStyle={styles.inputInnerContainer} // 테두리 색상 검정으로 변경
-          leftIcon={<Icon name="mail" type="feather" size={20} color="#888" />}
-          inputStyle={styles.emailInputStyle} // 줄 간격 조정
-          onSubmitEditing={() => nameRef.current.focus()} // 다음 필드로 이동
-          ref={emailRef}
-        />
-        
-        <Input
-          placeholder="이름"
-          onChangeText={handleNameChange}
-          value={name}
-          containerStyle={styles.input}
-          inputContainerStyle={styles.inputInnerContainer} // 테두리 색상 검정으로 변경
-          leftIcon={<Icon name="user" type="feather" size={20} color="#888" />}
-          onSubmitEditing={() => phoneRef.current.focus()} // 다음 필드로 이동
-          ref={nameRef}
-        />
-        
-        <Input
-          placeholder="연락처"
-          value={phone}
-          onChangeText={handlePhoneChange}
-          keyboardType="phone-pad"
-          containerStyle={styles.input}
-          inputContainerStyle={styles.inputInnerContainer} // 테두리 색상 검정으로 변경
-          leftIcon={<Icon name="phone" type="feather" size={20} color="#888" />}
-          onSubmitEditing={() => phoneRef.current.focus()} // 다음 필드로 이동
-          ref={phoneRef}
-        />
-        {/* 구력(NTRP) 필드 주석 처리 */}
-        {/* <Input
-          placeholder="구력(NTRP)"
-          value={ntrp}
-          onChangeText={handleNtrpChange}
-          keyboardType="numeric"
-          containerStyle={styles.input}
-          inputContainerStyle={styles.inputInnerContainer} // 테두리 색상 검정으로 변경
-          leftIcon={<Icon name="award" type="feather" size={20} color="#888" />}
-          onSubmitEditing={() => expYearsRef.current.focus()} // 다음 필드로 이동
-          ref={ntrpRef}
-        /> */}
+        {/* 4-1. 성별 */}
+        <View style={styles.inputPickerContainer}>
+          <RNPickerSelect
+            onValueChange={(value) => setGender(value)}
+            items={[
+              { label: '남', value: 'male' },
+              { label: '여', value: 'female' }
+            ]}
+            value={gender}
+            placeholder={{ label: '성별 선택', value: '' }}
+            style={pickerSelectStyles}
+            useNativeAndroidPickerStyle={false}
+            Icon={() => <Ionicons name="chevron-down" size={20} color="#aaa" />}
+          />
+        </View>
 
-        {/* 구력 값 입력 필드 추가 */}
-        <Input
-          placeholder="구력(경험 연수)"
-          value={expYears}
-          onChangeText={handleExpYearsChange}
-          keyboardType="numeric"
-          containerStyle={styles.input}
-          inputContainerStyle={styles.inputInnerContainer} // 테두리 색상 검정으로 변경
-          leftIcon={<Icon name="clock" type="feather" size={20} color="#888" />}
-       //   onSubmitEditing={() => teamRef.current.focus()} // 다음 필드로 이동
-          ref={expYearsRef}
-        />
-        
-        <Button 
-          title="가입하기" 
-          onPress={handleSignUp} 
-          containerStyle={styles.buttonContainer}
-          buttonStyle={styles.button}
-        />
-      </View>
-    </View>
+        {/* 5. 연락처 */}
+        <View style={styles.inputContainer}>
+          <Ionicons name="call-outline" size={20} color="#aaa" style={styles.icon} />
+          <TextInput
+            style={styles.input}
+            placeholder="연락처(숫자만)"
+            placeholderTextColor="#aaa"
+            value={phone}
+            onChangeText={handlePhoneChange}
+            keyboardType="phone-pad"
+            ref={phoneRef}
+            maxLength={11}
+          />
+        </View>
+
+        {/* 6. 구력(년수) */}
+        <View style={styles.inputContainer}>
+          <MaterialIcons name="timer" size={20} color="#aaa" style={styles.icon} />
+          <TextInput
+            style={styles.input}
+            placeholder="구력(년수)"
+            placeholderTextColor="#aaa"
+            value={expYears}
+            onChangeText={handleExpYearsChange}
+            keyboardType="decimal-pad"
+            ref={expYearsRef}
+          />
+        </View>
+
+        {/* 7. 소속팀 선택 */}
+        <View style={styles.inputPickerContainer}>
+          <RNPickerSelect
+            onValueChange={(value) => setTeam(value)}
+            items={teams.map(team => ({
+              label: `${team.teamName} (${team.id})`,
+              value: team.id
+            }))}
+            value={team}
+            placeholder={{ label: '클럽 선택', value: '' }}
+            style={pickerSelectStyles}
+            useNativeAndroidPickerStyle={false}
+            Icon={() => <Ionicons name="chevron-down" size={20} color="#aaa" />}
+          />
+        </View>
+
+        {/* 에러 메시지: 소속팀 아래, 회원가입 버튼 위 */}
+        {error && <Text style={styles.error}>{error}</Text>}
+
+        <TouchableOpacity style={styles.button} onPress={handleSignUp}>
+          <Text style={styles.buttonText}>회원가입</Text>
+        </TouchableOpacity>
+
+        {!isPremium && (
+          <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+            <Text style={styles.link}>이미 계정이 있으신가요? 로그인</Text>
+          </TouchableOpacity>
+        )}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: '#f5f5f5',
-    },
-    formContainer: {
-      padding: 20,
-    },
-    inputContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 5,
-      width: '65%', // Ensure the container takes full width
-    },
-    inputPickerContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
+  container: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: '#f7f7f7',
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#222',
+    marginBottom: 32,
+    alignSelf: 'center',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#eee',
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  icon: {
+    marginRight: 8,
+  },
+  input: {
+    flex: 1,
+    height: 48,
+    fontSize: 16,
+    color: '#222',
+  },
+  button: {
+    backgroundColor: '#4f8cff',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 12,
+    marginBottom: 16,
+    shadowColor: '#4f8cff',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  link: {
+    color: '#4f8cff',
+    fontSize: 15,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  error: {
+    color: '#ff4d4f',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  inputPickerContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  picker: {
+    height: 50,
+    width: '100%', // 소속팀 필드의 가로 길이 조정
+  },
+  idCheckButton: {
+    backgroundColor: '#4f8cff',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginLeft: 8,
+  },
+  idCheckButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 13,
+  },
+  pickerSelectStyles: {
+    inputIOS: {
+      fontSize: 16,
+      height: 48,
+      paddingVertical: 12,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      color: '#222',
+      backgroundColor: '#fff',
       borderWidth: 1,
-      borderColor: 'black', // 테두리 색상 검정으로 변경
-      borderRadius: 5,
-      paddingLeft: 10,
-      marginBottom: 5, // 줄 간격 조정
-      height: 50, // 높이 조정하여 글자가 잘리지 않도록
-      marginBottom: 15,
-      marginLeft: '2.5%', // 좌측 여백 조정
-     
-      width: '95%', // 연락처 필드와 동일한 가로 길이
+      borderColor: '#eee',
+      shadowColor: '#000',
+      shadowOpacity: 0.03,
+      shadowRadius: 4,
+      elevation: 2,
     },
-    input: {
-      marginBottom: 5,
-    },
-    checkButton: {
-      backgroundColor: '#4a90e2',
-      paddingHorizontal: 10,
-      height: 40,
-      marginBottom: 5, // 위치 조정
-    },
-    checkedText: {
-      color: 'green',
-      marginBottom: 15,
-      marginLeft: '3%', // 좌측 여백 조정
-      marginTop: -15, // 위치 조정
-    },
-    buttonContainer: {
-      marginTop: 20,
-    },
-    button: {
-      backgroundColor: '#4a90e2',
-      height: 50,
-      borderRadius: 25,
-    },
-    emailInput: {
-      flex: 1,
-    },
-    checkButtonContainer: {
-      marginLeft: 10,
-      marginBottom: 15,
-      width: 'auto', // Adjust button width as needed
-    },
-    emailInputStyle: {
-      lineHeight: 24, // 줄 간격 조정
-    },
-    inputInnerContainer: {
+    inputAndroid: {
+      fontSize: 16,
+      height: 48,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      color: '#222',
+      backgroundColor: '#fff',
       borderWidth: 1,
-      borderColor: 'black', // 테두리 색상 검정으로 변경
-      borderRadius: 5,
-      paddingLeft: 10,
-      marginBottom: -20, // 줄 간격 조정
-      height: 50, // 높이 조정하여 글자가 잘리지 않도록
+      borderColor: '#eee',
+      elevation: 2,
     },
-    inputField: {
-      // 배경색 제거
+    iconContainer: {
+      top: 16,
+      right: 12,
     },
-    requiredText: {
-      color: 'red',
-      fontSize: 12,
-      marginBottom: 5, // 문구와 필드 간격 조정
-      marginLeft: '3%', // 좌측 여백 조정
+    placeholder: {
+      color: '#aaa',
     },
-    spacing: {
-      height: 20, // 여백 추가
-    },
-    errorText: {
-      color: 'red',
-      fontSize: 12,
-    },
-    picker: {
-      height: 50,
-      width: '100%', // 소속팀 필드의 가로 길이 조정
-    },
+  },
 });
 
 export default SignUpScreen;

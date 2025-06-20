@@ -2,9 +2,9 @@
   "expo": {
     "name": "EnjoyTennis",
     "slug": "enjoyTennis",
-    "version": "1.0.1",
+    "version": "1.0.6",
     "orientation": "portrait",
-    "icon": "./assets/images/tennisIcon.jpg",
+    "icon": "./assets/images/tennisIcon.png",
     "userInterfaceStyle": "light",
     "splash": {
       "backgroundColor": "#ffffff"
@@ -12,8 +12,12 @@
     "assetBundlePatterns": [
       "**/*"
     ],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "ios": {
-      "bundleIdentifier": "com.yourcompany.enjoytennis",
+      "bundleIdentifier": "com.royalsf.enjoytennis",
       "buildNumber": "1.0.0",
       "supportsTablet": true,
       "infoPlist": {
@@ -22,11 +26,11 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/tennisIcon.jpg",
+        "foregroundImage": "./assets/images/tennisIcon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.yourcompany.enjoytennis",
-      "versionCode": 4,
+      "package": "com.royalsf.enjoytennis",
+      "versionCode": 6,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE"
@@ -36,6 +40,7 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
+      "revenueCatApiKey": "goog_gIEHoBIRPXnrOPNhjdqSRwQQbPi",
       "eas": {
         "projectId": "11d0faac-673d-4ee8-8eab-7dd9f4441c9e"
       }

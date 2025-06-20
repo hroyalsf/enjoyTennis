@@ -1,23 +1,24 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore, doc, getDoc, setDoc, collection, getDocs, updateDoc } from "firebase/firestore";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, initializeAuth, getReactNativePersistence } from "firebase/auth";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBhyCFYDAoAMFSVp9fIakEgoQ2GEULmtDI",
   authDomain: "enjoytennis-5d9de.firebaseapp.com",
   projectId: "enjoytennis-5d9de",
-  storageBucket: "enjoytennis-5d9de.firebasestorage.app",
+  storageBucket: "enjoytennis-5d9de.appspot.com",
   messagingSenderId: "41176280311",
   appId: "1:41176280311:web:82985a0daaa338cfc537f2"
 };
 
-// Firebase 초기화
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// Firebase 초기화 (중복 방지)
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+export const db = getFirestore(app);
 
-// Firebase Auth 초기화 with AsyncStorage
-const auth = initializeAuth(app, {
+// Firebase Auth 초기화 (Persistence 포함)
+export const auth = initializeAuth(app, {
   persistence: getReactNativePersistence(AsyncStorage)
 });
 
@@ -26,33 +27,35 @@ export const onAuthStateChanged = (callback) => {
   return auth.onAuthStateChanged(callback);
 };
 
-// 로그인 함수
-export const signIn = async (userId, password) => {
+// 로그인 (이메일/비밀번호)
+export const signIn = async (email, password) => {
   try {
-    // 먼저 사용자 데이터를 가져와서 이메일 확인
-    const userDoc = doc(db, 'users', userId);
-    const userSnapshot = await getDoc(userDoc);
-    
-    if (!userSnapshot.exists()) {
-      throw new Error('user-not-found');
-    }
-
-    const userData = userSnapshot.data();
-    
-    // 비밀번호 확인
-    if (userData.userPw !== password) {
-      throw new Error('wrong-password');
-    }
-
-    // 로그인 성공
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+    // Firestore에서 추가 정보 가져오기
+    const userDoc = await getDoc(doc(db, 'users', user.uid));
     return {
-      user: {
-        uid: userId,
-        ...userData
-      }
+      user,
+      userData: userDoc.exists() ? userDoc.data() : null
     };
   } catch (error) {
-    console.error("로그인 오류:", error);
+    throw error;
+  }
+};
+
+// 회원가입 (이메일/비밀번호)
+export const signUpUser = async (email, password, userData) => {
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+    // Firestore에 추가 정보 저장 (uid를 문서ID로)
+    await setDoc(doc(db, 'users', user.uid), {
+      email: user.email,
+      ...userData,
+      createdAt: new Date().toISOString()
+    });
+    return user;
+  } catch (error) {
     throw error;
   }
 };
@@ -62,39 +65,19 @@ export const signOutUser = async () => {
   try {
     await signOut(auth);
   } catch (error) {
-    console.error("로그아웃 오류:", error);
     throw error;
   }
 };
 
 // 사용자 데이터 가져오기 함수
-export const getUserData = async (userId) => {
-  try {
-    const userDoc = doc(db, 'users', userId);
-    const snapshot = await getDoc(userDoc);
-    return snapshot.exists() ? snapshot.data() : null;
-  } catch (error) {
-    console.error("데이터 가져오기 오류:", error);
-    throw error;
+export async function getUserData(uid) {
+  const userDocRef = doc(db, 'users', uid);
+  const userDoc = await getDoc(userDocRef);
+  if (userDoc.exists()) {
+    return userDoc.data();
   }
-};
-
-// 사용자 추가 함수
-export const signUpUser = async (userId, userData) => {
-  try {
-    // Firestore에 사용자 정보 저장
-    const userDoc = doc(db, 'users', userId);
-    await setDoc(userDoc, {
-      ...userData,
-      createdAt: new Date().toISOString()
-    });
-    
-    return userId;
-  } catch (error) {
-    console.error("Error adding user:", error);
-    throw error;
-  }
-};
+  return null;
+}
 
 // 팀 데이터 가져오는 함수
 export const getTeamData = async (teamId) => {
@@ -118,13 +101,9 @@ export const updateTeamMemberCount = async (teamId) => {
     const teamDoc = doc(db, 'teams', teamId);
     const teamSnapshot = await getDoc(teamDoc);
     const teamData = teamSnapshot.data();
-  
-    if (teamData.memberCnt_free > 0) {
-      await updateDoc(teamDoc, {
-        memberCnt_free: teamData.memberCnt_free - 1,
-        memberCnt: teamData.memberCnt + 1,
-      });
-    } else if (teamData.memberCnt_rest > 0) {
+
+    // memberCnt_rest만 체크
+    if (teamData.memberCnt_rest > 0) {
       await updateDoc(teamDoc, {
         memberCnt_rest: teamData.memberCnt_rest - 1,
         memberCnt: teamData.memberCnt + 1,

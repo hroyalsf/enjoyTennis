@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:41176280311:android:73018d37f7dfe228c537f2",
+        "android_client_info": {
+          "package_name": "com.royalsf.enjoytennis"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAHH5a7B0-1I7xLidZYrEfPM5ezOVd6UeM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:41176280311:android:0aea40a3171efee1c537f2",
         "android_client_info": {
           "package_name": "com.yourcompany.enjoytennis"
