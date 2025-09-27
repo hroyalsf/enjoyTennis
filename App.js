@@ -1,8 +1,10 @@
 import 'react-native-gesture-handler';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Alert } from 'react-native';
+import * as Updates from 'expo-updates';
 import StartScreen from './src/screens/StartScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import SignUpScreen from './src/screens/SignUpScreen';
@@ -43,6 +45,37 @@ const linking = {
 };
 
 function App() {
+  // 앱 시작 시 업데이트 체크
+  useEffect(() => {
+    checkForUpdates();
+  }, []);
+
+  const checkForUpdates = async () => {
+    try {
+      if (!__DEV__) {
+        const update = await Updates.checkForUpdateAsync();
+        if (update.isAvailable) {
+          Alert.alert(
+            '업데이트 사용 가능',
+            '새로운 버전이 있습니다. 업데이트하시겠습니까?',
+            [
+              { text: '나중에', style: 'cancel' },
+              { 
+                text: '업데이트', 
+                onPress: async () => {
+                  await Updates.fetchUpdateAsync();
+                  await Updates.reloadAsync();
+                }
+              }
+            ]
+          );
+        }
+      }
+    } catch (error) {
+      console.log('업데이트 체크 오류:', error);
+    }
+  };
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>

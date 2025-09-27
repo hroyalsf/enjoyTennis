@@ -247,45 +247,43 @@ const ScheduleRegisterScreen = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* 팀 코트 세트 프리셋 카드 */}
-        <View style={styles.presetCard}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-            <Ionicons name="sparkles-outline" size={20} color="#2563eb" style={{ marginRight: 6 }} />
-            <Text style={styles.presetLabel}>팀 코트 세트</Text>
-          </View>
-          <RNPickerSelect
-            onValueChange={(value) => {
-              setSelectedCourtSetId(value);
-              if (!value) {
-                setSelectedCourtId('');
-                setCourtAddr('');
-                setCourtNum('');
-                setCourtTime('');
-              }
-            }}
-            items={teamCourtSets.map(set => ({
-              label: set.courtName,
-              value: set.id
-            }))}
-            value={selectedCourtSetId}
-            placeholder={{ label: '선택하세요', value: '' }}
-            style={presetPickerSelectStyles}
-            useNativeAndroidPickerStyle={false}
-            Icon={() => <Ionicons name="chevron-down" size={20} color="#aaa" />}
-          />
-          <Text style={styles.presetDesc}>선택 시 아래 정보가 자동으로 채워집니다.</Text>
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      {/* 팀 코트 세트 프리셋 카드 */}
+      <View style={styles.presetCard}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+          <Ionicons name="sparkles-outline" size={20} color="#2563eb" style={{ marginRight: 6 }} />
+          <Text style={styles.presetLabel}>팀 코트 세트</Text>
         </View>
+        <RNPickerSelect
+          onValueChange={(value) => {
+            setSelectedCourtSetId(value);
+            if (!value) {
+              setSelectedCourtId('');
+              setCourtAddr('');
+              setCourtNum('');
+              setCourtTime('');
+            }
+          }}
+          items={teamCourtSets.map(set => ({
+            label: set.courtName,
+            value: set.id
+          }))}
+          value={selectedCourtSetId}
+          placeholder={{ label: '선택하세요', value: '' }}
+          style={presetPickerSelectStyles}
+          useNativeAndroidPickerStyle={false}
+          Icon={() => <Ionicons name="chevron-down" size={20} color="#aaa" />}
+        />
+        <Text style={styles.presetDesc}>선택 시 아래 정보가 자동으로 채워집니다.</Text>
+      </View>
 
-        {/* 나머지 입력란 */}
+      {/* 일정 정보 입력 섹션 */}
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>일정 정보</Text>
+        
         <Text style={styles.label}>날짜</Text>
         <TouchableOpacity onPress={showDatepicker} style={styles.input}>
-          <Text>{dateText}</Text>
+          <Text style={styles.inputText}>{dateText}</Text>
         </TouchableOpacity>
         <DateTimePickerModal
           isVisible={isDatePickerVisible}
@@ -324,7 +322,7 @@ const ScheduleRegisterScreen = ({ route, navigation }) => {
 
         <Text style={styles.label}>코트 주소</Text>
         <TextInput 
-          style={[styles.input, { backgroundColor: '#eee' }]} 
+          style={[styles.input, styles.disabledInput]} 
           value={courtAddr} 
           editable={false} 
         />
@@ -335,6 +333,7 @@ const ScheduleRegisterScreen = ({ route, navigation }) => {
           value={courtNum} 
           onChangeText={setCourtNum}
           placeholder="코트 번호를 입력하세요"
+          placeholderTextColor="#9ca3af"
         />
 
         <Text style={styles.label}>코트 시간</Text>
@@ -343,76 +342,124 @@ const ScheduleRegisterScreen = ({ route, navigation }) => {
           value={courtTime} 
           onChangeText={setCourtTime}
           placeholder="코트 시간을 입력하세요"
+          placeholderTextColor="#9ca3af"
         />
-      </ScrollView>
-      <View style={{
-        position: 'absolute',
-        left: 0, right: 0, bottom: 0,
-        backgroundColor: '#fff',
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        borderTopWidth: 1,
-        borderColor: '#eee',
-      }}>
-        <TouchableOpacity style={styles.registerButton} onPress={handleRegister}>
-          <Text style={styles.registerButtonText}>등록</Text>
-        </TouchableOpacity>
       </View>
-    </SafeAreaView>
+
+      {/* 등록 버튼 */}
+      <TouchableOpacity style={styles.registerButton} onPress={handleRegister}>
+        <Text style={styles.registerButtonText}>등록</Text>
+      </TouchableOpacity>
+
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: '#f7f7f7',
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 20,
   },
   label: {
     fontWeight: 'bold',
-    marginTop: 16,
-    marginBottom: 4,
+    fontSize: 15,
+    color: '#374151',
+    marginTop: 12,
+    marginBottom: 6,
   },
   input: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#fff',
     padding: 12,
-    borderRadius: 6,
-    marginBottom: 8,
+    borderRadius: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    fontSize: 15,
+    color: '#111827',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   registerButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 12,
+    backgroundColor: '#3b82f6',
+    paddingVertical: 14,
     paddingHorizontal: 0,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
-    marginTop: 0,
+    marginTop: 16,
     marginBottom: 0,
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   registerButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+    letterSpacing: 0.3,
   },
   presetCard: {
-    backgroundColor: '#e8f0fe',
+    backgroundColor: '#f0f9ff',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 18,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
     shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowRadius: 4,
     elevation: 2,
   },
   presetLabel: {
     fontWeight: 'bold',
     fontSize: 16,
-    color: '#2563eb',
+    color: '#1e40af',
   },
   presetDesc: {
-    color: '#2563eb',
+    color: '#1e40af',
     fontSize: 13,
-    marginTop: 4,
+    marginTop: 6,
     marginLeft: 2,
+    lineHeight: 18,
+  },
+  sectionCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#3b82f6',
+    paddingBottom: 6,
+  },
+  inputText: {
+    fontSize: 15,
+    color: '#111827',
+  },
+  disabledInput: {
+    backgroundColor: '#f9fafb',
+    color: '#6b7280',
   },
 });
 

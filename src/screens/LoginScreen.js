@@ -176,14 +176,6 @@ function LoginScreen({ navigation }) {
               buttonStyle={styles.outlineButton}
               titleStyle={styles.outlineButtonTitle}
             />
-            <Button
-              title="클럽 신규 생성"
-              onPress={() => navigation.navigate('PremiumTeamRegister')}
-              type="outline"
-              containerStyle={styles.buttonContainer}
-              buttonStyle={[styles.outlineButton, { borderColor: '#10b981' }]}
-              titleStyle={[styles.outlineButtonTitle, { color: '#10b981' }]}
-            />
           </View>
           {/* 버튼 아래에 버전 정보 배치, 충분한 여백 */}
           <View style={styles.versionContainerFixed}>

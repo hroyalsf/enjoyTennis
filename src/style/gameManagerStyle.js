@@ -116,7 +116,7 @@ export default StyleSheet.create({
     backgroundColor: '#f4f7fb',
   },
   gameGridCellDelete: {
-    width: 56,
+    width: 40,
     alignItems: 'center',
     justifyContent: 'center',
     borderRightWidth: 1,
@@ -160,7 +160,7 @@ export default StyleSheet.create({
   },
   scoreLabel: {
     color: '#888',
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: 'bold',
   },
   readonlyBg: {
@@ -185,6 +185,93 @@ export default StyleSheet.create({
     backgroundColor: '#f5f5f5',
     color: '#999',
     borderColor: '#e0e0e0',
+  },
+  // 플레이어 선택 버튼 스타일
+  playerSelectButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    marginHorizontal: 1,
+    minHeight: 36,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  playerSelectButtonDisabled: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#e0e0e0',
+  },
+  playerSelectText: {
+    fontSize: 12,
+    color: '#222',
+    fontWeight: '500',
+    textAlign: 'center',
+    flex: 1,
+    numberOfLines: 2,
+  },
+  playerSelectTextDisabled: {
+    color: '#999',
+  },
+  // 플레이어 선택 모달 스타일
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  playerModal: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    minWidth: 280,
+    maxWidth: '90%',
+    maxHeight: '70%',
+  },
+  playerModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 16,
+    color: '#222',
+  },
+  playerList: {
+    maxHeight: 300,
+    marginBottom: 16,
+  },
+  playerItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    backgroundColor: '#fff',
+  },
+  playerItemText: {
+    fontSize: 16,
+    color: '#222',
+    textAlign: 'center',
+  },
+  closeButton: {
+    backgroundColor: '#2563eb',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignSelf: 'center',
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
 });
 

@@ -2,13 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Alert, ScrollView, KeyboardAvoidingView, Platform, TextInput, BackHandler } from 'react-native';
 import { Input, Button, Icon } from 'react-native-elements';
 import { Picker } from '@react-native-picker/picker'; // 수정된 부분
-import { getUserData, signUpUser, getTeams, getTeamData, updateTeamMemberCount } from '../services/firebaseService'; // 서비스 호출
+import { getUserData, signUpUser } from '../services/firebaseService'; // 서비스 호출
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import RNPickerSelect from 'react-native-picker-select';
 import { doc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '../services/firebaseService';
 import { getAuth } from 'firebase/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 //import styles from '../style/main.css'; // 스타일 import
 
 const pickerSelectStyles = {
@@ -56,14 +55,10 @@ function SignUpScreen({ navigation, route }) {
   
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [team, setTeam] = useState('');
   const [ntrp, setNtrp] = useState('');
   const [expYears, setExpYears] = useState('');
-  const [teams, setTeams] = useState([]);
   const [error, setError] = useState('');
   const [gender, setGender] = useState('');
-  const [pendingPremium, setPendingPremium] = useState(false);
-  const [alertedPremium, setAlertedPremium] = useState(false);
 
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
@@ -71,22 +66,9 @@ function SignUpScreen({ navigation, route }) {
   const phoneRef = useRef(null);
   const ntrpRef = useRef(null);
   const expYearsRef = useRef(null);
-  const teamRef = useRef(null);
   const nameRef = useRef(null);
 
-  const isPremium = route?.params?.isPremium;
 
-  useEffect(() => {
-    const fetchTeams = async () => {
-      try {
-        const teamsData = await getTeams();
-        setTeams(teamsData);
-      } catch (error) {
-        console.error("소속팀 조회 오류:", error);
-      }
-    };
-    fetchTeams();
-  }, []);
 
   useEffect(() => {
     const onBackPress = () => true; // true를 반환하면 뒤로가기 무시
@@ -94,32 +76,6 @@ function SignUpScreen({ navigation, route }) {
     return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
   }, []);
 
-  useEffect(() => {
-    if (isPremium) {
-      AsyncStorage.setItem('pendingPremiumSignUp', 'true');
-    }
-  }, [isPremium]);
-
-  useEffect(() => {
-    const checkPremiumPending = async () => {
-      const pending = await AsyncStorage.getItem('pendingPremiumSignUp');
-      if (pending === 'true' && !isPremium && !alertedPremium) {
-        setAlertedPremium(true);
-        Alert.alert('프리미엄 회원가입 안내', '프리미엄 소속팀 등록이 완료되어 프리미엄 회원가입으로 진행됩니다.');
-      } else if (pending === 'true' && !isPremium && alertedPremium) {
-        // alert 후에는 pendingPremiumSignUp을 삭제하고 일반 회원가입으로 전환
-        await AsyncStorage.removeItem('pendingPremiumSignUp');
-        setPendingPremium(false);
-      }
-    };
-    checkPremiumPending();
-  }, [isPremium, alertedPremium]);
-
-  useEffect(() => {
-    AsyncStorage.getItem('pendingPremiumSignUp').then(val => {
-      setPendingPremium(val === 'true');
-    });
-  }, []);
 
   const handlePhoneChange = (text) => {
     const numericValue = text.replace(/[^0-9]/g, '');
@@ -156,7 +112,7 @@ function SignUpScreen({ navigation, route }) {
   };
 
   const handleSignUp = async () => {
-    if (!email || !password || !confirmPassword || !team || !gender) {
+    if (!email || !password || !confirmPassword || !gender) {
       setError('모든 항목을 입력해주세요.');
       return;
     }
@@ -164,39 +120,15 @@ function SignUpScreen({ navigation, route }) {
       setError('비밀번호가 일치하지 않습니다.');
       return;
     }
-
-    // 팀의 잔여 회원 수 체크 (memberCnt_rest만)
-    try {
-      const teamData = await getTeamData(team); // 팀 데이터 가져오기
-      if (teamData.memberCnt_rest === 0) {
-        Alert.alert(
-          '오류',
-          '해당 클럽에 잔여 회원수가 없습니다.\n클럽 리더(회장)에게 잔여 회원수 추가를 요청해주세요.'
-        );
-        return;
-      }
-    } catch (error) {
-      console.error("팀 데이터 조회 오류:", error);
-      Alert.alert('오류', '팀 데이터 조회 중 오류가 발생했습니다.');
-      return;
-    }
   
-    // 실제 가입 직전에 pendingPremiumSignUp 값을 직접 체크
-    let premiumFlag = isPremium;
-    try {
-      const pending = await AsyncStorage.getItem('pendingPremiumSignUp');
-      if (pending === 'true') premiumFlag = true;
-    } catch (e) {}
-
     const userData = {
       userName: name,
       userGender: gender,
       userHP: phone,
-      userTeam: team,
       NTRP: ntrp,
       expYears: expYears,
-      authGroup: premiumFlag ? "ADM01" : "BAS01",
-      userStat: premiumFlag ? 200 : 100,
+      authGroup: "BAS02",
+      userStat: 100,
     };
   
     try {
@@ -210,15 +142,7 @@ function SignUpScreen({ navigation, route }) {
         const userRef = doc(db, 'users', userId);
         await updateDoc(userRef, { ability: increment(abilityInt) });
       }
-      // 회원가입 성공 시에는 무조건 pendingPremiumSignUp 삭제
-      await AsyncStorage.removeItem('pendingPremiumSignUp');
-      // userStat 값에 따라 안내 문구 분기
-      if ((userData.userStat || 0) === 100) {
-        Alert.alert('안내', '회원가입 요청이 완료되었습니다.\n클럽 리더 승인 후 이용하실 수 있습니다.');
-      } else {
-        Alert.alert('성공', '회원가입이 완료되었습니다.');
-      }
-      await updateTeamMemberCount(team);
+      Alert.alert('성공', '회원가입이 완료되었습니다.');
       navigation.navigate('Login');
     } catch (error) {
       if (error.code === 'auth/email-already-in-use') {
@@ -351,21 +275,6 @@ function SignUpScreen({ navigation, route }) {
           />
         </View>
 
-        {/* 7. 소속팀 선택 */}
-        <View style={styles.inputPickerContainer}>
-          <RNPickerSelect
-            onValueChange={(value) => setTeam(value)}
-            items={teams.map(team => ({
-              label: `${team.teamName} (${team.id})`,
-              value: team.id
-            }))}
-            value={team}
-            placeholder={{ label: '클럽 선택', value: '' }}
-            style={pickerSelectStyles}
-            useNativeAndroidPickerStyle={false}
-            Icon={() => <Ionicons name="chevron-down" size={20} color="#aaa" />}
-          />
-        </View>
 
         {/* 에러 메시지: 소속팀 아래, 회원가입 버튼 위 */}
         {error && <Text style={styles.error}>{error}</Text>}
@@ -374,11 +283,9 @@ function SignUpScreen({ navigation, route }) {
           <Text style={styles.buttonText}>회원가입</Text>
         </TouchableOpacity>
 
-        {!isPremium && (
-          <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-            <Text style={styles.link}>이미 계정이 있으신가요? 로그인</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+          <Text style={styles.link}>이미 계정이 있으신가요? 로그인</Text>
+        </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );

@@ -27,13 +27,13 @@ const ClubManagerScreen = ({ route }) => {
   const [courtModal, setCourtModal] = useState(false);
   const [memberModal, setMemberModal] = useState(false);
   const [showRestHelp, setShowRestHelp] = useState(false);
+  const [showProductModal, setShowProductModal] = useState(false);
   
   // Forms & Lists
   const [courtForm, setCourtForm] = useState({ courtName: '', courtAddr: '', courtNum: '', courtTime: '' });
   const [members, setMembers] = useState([]);
   const [memberAuthNames, setMemberAuthNames] = useState({});
   const [lastDoc, setLastDoc] = useState(null);
-  const [sortKey, setSortKey] = useState('ability');
   
   // Loading & State
   const [loading, setLoading] = useState(false);
@@ -122,69 +122,151 @@ const ClubManagerScreen = ({ route }) => {
     }
   };
 
-  const handleBuyMemberCnt = async () => {
+  const handleBuyMemberCnt = () => {
     if (isPurchasing) return;
     if (products.length === 0) {
       Alert.alert('상품 준비 중', '현재 구매 가능한 상품이 없습니다. 잠시 후 다시 시도해 주세요.');
       return;
     }
+    setShowProductModal(true);
+  };
 
+  const getMemberIncrementByProductId = (productId) => {
+    if (productId === 'buy_member_count_10') return 10;
+    if (productId === 'buy_member_count_30') return 30;
+    if (productId === 'buy_member_count_100') return 100;
+    return null; // 정의되지 않은 상품
+  };
+
+  const handlePurchase = async (pkg) => {
     setIsPurchasing(true);
     try {
-      const packageToPurchase = products[0];
-      const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
-      
-      const entitlementId = 'add_10_members'; 
-      if (typeof customerInfo.entitlements.active[entitlementId] !== "undefined") {
-        const teamRef = doc(db, 'teams', userTeam);
-        await updateDoc(teamRef, { memberCnt_rest: increment(10) });
-        await fetchTeam();
-        Alert.alert('구매 완료', '잔여회원수가 10 증가했습니다.');
+      const { customerInfo } = await Purchases.purchasePackage(pkg);
+      const entitlementId = pkg.product.identifier;
+      if (customerInfo && customerInfo.entitlements && customerInfo.entitlements.active) {
+        if (typeof customerInfo.entitlements.active[entitlementId] !== 'undefined') {
+          const incrementValue = getMemberIncrementByProductId(pkg.product.identifier);
+          if (incrementValue) {
+            const teamRef = doc(db, 'teams', userTeam);
+            await updateDoc(teamRef, { memberCnt_rest: increment(incrementValue) });
+            await fetchTeam();
+            Alert.alert('구매 완료', `잔여회원수가 ${incrementValue} 증가했습니다.`);
+          } else {
+            Alert.alert('알림', '이 상품은 아직 앱에서 지원하지 않습니다. 관리자에게 문의하세요.');
+          }
+        }
       }
     } catch (e) {
       if (!e.userCancelled) {
         Alert.alert('결제 실패', '오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
-        console.log("Purchase Error: ", e);
+        console.log('Purchase Error: ', e);
       }
     } finally {
       setIsPurchasing(false);
+      setShowProductModal(false);
     }
   };
 
   const handleMemberApproval = async (member) => {
-    let actionText = '';
-    let newAuthGroup = '';
-    let newUserStat = member.userStat;
-
     if (Number(member.userStat) === 100) {
-        actionText = `${member.userName} 가입을 승인하시겠습니까?`;
-        newUserStat = 200;
+        // 준회원인 경우: 승인/거부/취소 옵션
+        Alert.alert(
+            '회원 승인',
+            `${member.userName}님의 가입신청을 처리하시겠습니까?`,
+            [
+                { text: '취소', style: 'cancel' },
+                {
+                    text: '거부',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            // userTeam 초기화
+                            await updateDoc(doc(db, 'users', member.id), {
+                                userTeam: null
+                            });
+                            fetchMembers(false); // Refresh list
+                            Alert.alert('완료', '가입신청이 거부되었습니다.');
+                        } catch (error) {
+                            console.error("Error rejecting member:", error);
+                            Alert.alert("오류", "회원 정보 업데이트 중 오류가 발생했습니다.");
+                        }
+                    }
+                },
+                {
+                    text: '승인',
+                    onPress: async () => {
+                        try {
+                            // 먼저 팀의 memberCnt_rest 확인
+                            if (member.userTeam) {
+                                const teamRef = doc(db, 'teams', member.userTeam);
+                                const teamDoc = await getDoc(teamRef);
+                                
+                                if (!teamDoc.exists()) {
+                                    Alert.alert("오류", "팀 정보를 찾을 수 없습니다.");
+                                    return;
+                                }
+                                
+                                const teamData = teamDoc.data();
+                                const currentRest = teamData.memberCnt_rest || 0;
+                                
+                                if (currentRest <= 0) {
+                                    Alert.alert("승인 불가", "팀 정원이 가득 찼습니다. 더 이상 회원을 승인할 수 없습니다.");
+                                    return;
+                                }
+                                
+                                // userStat을 200으로 업데이트하고 authGroup을 BAS01로 설정
+                                await updateDoc(doc(db, 'users', member.id), {
+                                    userStat: 200,
+                                    authGroup: 'BAS01'
+                                });
+                                
+                                // 해당 팀의 memberCnt를 1 증가하고 memberCnt_rest를 1 감소
+                                await updateDoc(teamRef, {
+                                    memberCnt: increment(1),
+                                    memberCnt_rest: increment(-1)
+                                });
+                                
+                                fetchMembers(false); // Refresh list
+                                await fetchTeam(); // 팀 정보 다시 불러오기
+                                Alert.alert('완료', '가입이 승인되었습니다.');
+                            } else {
+                                Alert.alert("오류", "팀 정보가 없습니다.");
+                            }
+                        } catch (error) {
+                            console.error("Error approving member:", error);
+                            Alert.alert("오류", "회원 정보 업데이트 중 오류가 발생했습니다.");
+                        }
+                    }
+                }
+            ]
+        );
     } else if (Number(member.userStat) === 200 && member.authGroup === 'BAS01') {
-        actionText = `${member.userName}님을 지정관리자로 승격하시겠습니까?`;
-        newAuthGroup = 'ADM02';
+        // 정회원을 관리자로 승격
+        Alert.alert(
+            '관리자 승격',
+            `${member.userName}님을 지정관리자로 승격하시겠습니까?`,
+            [
+                { text: '취소', style: 'cancel' },
+                {
+                    text: '확인',
+                    onPress: async () => {
+                        try {
+                            await updateDoc(doc(db, 'users', member.id), {
+                                authGroup: 'ADM02'
+                            });
+                            fetchMembers(false); // Refresh list
+                            Alert.alert('완료', '관리자로 승격되었습니다.');
+                        } catch (error) {
+                            console.error("Error promoting member:", error);
+                            Alert.alert("오류", "회원 정보 업데이트 중 오류가 발생했습니다.");
+                        }
+                    }
+                }
+            ]
+        );
     } else {
         return; // No action
     }
-
-    Alert.alert('확인', actionText, [
-        { text: '취소', style: 'cancel' },
-        {
-            text: '확인',
-            onPress: async () => {
-                try {
-                    const updateData = { userStat: newUserStat };
-                    if (newAuthGroup) {
-                        updateData.authGroup = newAuthGroup;
-                    }
-                    await updateDoc(doc(db, 'users', member.id), updateData);
-                    fetchMembers(false); // Refresh list
-                } catch (error) {
-                    console.error("Error updating member:", error);
-                    Alert.alert("오류", "회원 정보 업데이트 중 오류가 발생했습니다.");
-                }
-            }
-        }
-    ]);
   };
 
   // --- MEMBER LIST LOGIC ---
@@ -196,7 +278,7 @@ const ClubManagerScreen = ({ route }) => {
         let q = query(
           collection(db, 'users'),
           where('userTeam', '==', userTeam),
-          orderBy('userName'),
+          orderBy('ability', 'desc'),
           limit(10)
         );
         if (nextPage && lastDoc) {
@@ -259,15 +341,16 @@ const ClubManagerScreen = ({ route }) => {
   );
 
   const sortedMembers = [...members].sort((a, b) => {
+      // 먼저 회원 상태별로 정렬 (준회원이 위로)
       if ((a.userStat === 100 ? 0 : 1) !== (b.userStat === 100 ? 0 : 1)) {
           return (a.userStat === 100 ? -1 : 1);
       }
-      if (sortKey === 'userName') return a.userName.localeCompare(b.userName);
-      return (b[sortKey] || 0) - (a[sortKey] || 0);
+      // 같은 상태 내에서는 전투력 높은 순으로 정렬
+      return (b.ability || 0) - (a.ability || 0);
   });
   
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
       <Text style={styles.sectionTitle}>기본 정보 관리</Text>
       {teamInfo ? (
         <View style={styles.infoBox}>
@@ -286,7 +369,9 @@ const ClubManagerScreen = ({ route }) => {
           <View style={styles.infoRow}><Text style={styles.infoLabel}>정기모임일</Text><TextInput value={editDate} onChangeText={setEditDate} placeholder="정기모임일" style={styles.inputActive} placeholderTextColor="#888" /></View>
           <View style={styles.infoRow}><Text style={styles.infoLabel}>주요코트</Text><TextInput value={editCourt} onChangeText={setEditCourt} placeholder="주요코트" style={styles.inputActive} placeholderTextColor="#888" /></View>
           <View style={{ height: 8 }} />
-          <TouchableOpacity style={styles.buyBtn} onPress={handleBuyMemberCnt} disabled={isPurchasing}><Text style={styles.buyBtnText}>{isPurchasing ? '처리 중...' : '잔여회원수 구매'}</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.buyBtn} onPress={handleBuyMemberCnt} disabled={isPurchasing}>
+            <Text style={styles.buyBtnText}>{isPurchasing ? '처리 중...' : '잔여회원수 구매'}</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.saveBtn} onPress={handleSaveTeam}><Text style={styles.saveBtnText}>저장</Text></TouchableOpacity>
         </View>
       ) : <ActivityIndicator style={{ marginVertical: 24 }} size="large" />}
@@ -322,6 +407,10 @@ const ClubManagerScreen = ({ route }) => {
       </Modal>
       
       <TouchableOpacity style={styles.actionBtn} onPress={() => { setMemberModal(true); fetchMembers(false); }}><Text style={styles.actionBtnText}>회원 리스트 조회</Text></TouchableOpacity>
+      
+      {/* 하단 여백 추가 */}
+      <View style={styles.bottomSpacer} />
+      
       <Modal visible={memberModal} transparent animationType="slide" onRequestClose={() => setMemberModal(false)}>
         <View style={styles.modalBg}>
           <View style={styles.modalBox}>
@@ -351,12 +440,36 @@ const ClubManagerScreen = ({ route }) => {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      <Modal visible={showProductModal} transparent animationType="slide" onRequestClose={() => setShowProductModal(false)}>
+        <View style={styles.modalBg}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>구매할 상품을 선택하세요</Text>
+            {products.map((pkg) => (
+              <TouchableOpacity
+                key={pkg.identifier}
+                style={[styles.buyBtn, { marginBottom: 8 }]}
+                onPress={() => handlePurchase(pkg)}
+                disabled={isPurchasing}
+              >
+                <Text style={styles.buyBtnText}>
+                  {pkg.product.title || pkg.product.identifier} - {pkg.product.priceString}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity onPress={() => setShowProductModal(false)}>
+              <Text style={{ color: '#888', marginTop: 8, textAlign: 'center' }}>닫기</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f7f7f7', padding: 20 },
+  scrollContent: { paddingBottom: 100 }, // 하단 여백 추가
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#2563eb', marginBottom: 12, marginTop: 12 },
   infoBox: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 18, borderWidth: 1, borderColor: '#e5e7eb', elevation: 1 },
   infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
@@ -381,6 +494,7 @@ const styles = StyleSheet.create({
   helpBox: { backgroundColor: '#eef2ff', borderRadius: 10, padding: 16, marginTop: -4, marginBottom: 12 },
   helpTitle: { color: '#4338ca', fontWeight: 'bold', fontSize: 15, marginBottom: 8 },
   helpItem: { color: '#4338ca', fontSize: 14, lineHeight: 20 },
+  bottomSpacer: { height: 100 }, // 하단 여백 컴포넌트
 });
 
 export default ClubManagerScreen;

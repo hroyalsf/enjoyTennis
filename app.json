@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "EnjoyTennis",
+    "name": "테니스클럽",
     "slug": "enjoyTennis",
-    "version": "1.0.6",
+    "version": "1.1.4",
     "orientation": "portrait",
     "icon": "./assets/images/tennisIcon.png",
     "userInterfaceStyle": "light",
@@ -30,7 +30,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.royalsf.enjoytennis",
-      "versionCode": 6,
+      "versionCode": 15,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE"
@@ -46,8 +46,31 @@
       }
     },
     "owner": "royalsf",
+    "newArchEnabled": true,
     "plugins": [
-      "expo-build-properties"
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "targetSdkVersion": 35,
+            "compileSdkVersion": 35,
+            "minSdkVersion": 24,
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "enableHermes": true,
+            "enableNewArchitecture": true,
+            "enable16KbPageSize": true,
+            "packagingOptions": {
+              "jniLibs": {
+                "useLegacyPackaging": false
+              }
+            },
+            "ndkVersion": "28.0.12077973",
+            "buildToolsVersion": "34.0.0",
+            "enableR8": true
+          }
+        }
+      ]
     ]
   }
 }

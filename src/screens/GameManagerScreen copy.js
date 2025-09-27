@@ -64,9 +64,7 @@ const GameManagerScreen = ({ navigation, route }) => {
   const [authGroup, setAuthGroup] = useState('');
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [statArr, setStatArr] = useState([]);
-  const [showPlayerModal, setShowPlayerModal] = useState(false);
-  const [selectedRowIdx, setSelectedRowIdx] = useState(null);
-  const [selectedPlayerIdx, setSelectedPlayerIdx] = useState(null);
+  const [isUpdateStatsDisabled, setIsUpdateStatsDisabled] = useState(false);
 
   // 1. 유저팀 정보 및 authGroup 가져오기
   useEffect(() => {
@@ -180,14 +178,11 @@ const GameManagerScreen = ({ navigation, route }) => {
 
   // 7. 참석인원 중복 선택 방지
   const getAvailableAttendees = (rowIdx, playerIdx) => {
-    if (!games[rowIdx] || !games[rowIdx].players) {
-      return attendees || [];
-    }
-    const selectedInRow = games[rowIdx].players
+    const selectedInRow = games[rowIdx]?.players
       .filter((_, j) => j !== playerIdx)
       .filter(Boolean)
       .map(p => p?.userId);
-    return (attendees || []).filter(a => !selectedInRow.includes(a.userId));
+    return attendees.filter(a => !selectedInRow.includes(a.userId));
   };
 
   // 8. 대진표 자동생성
@@ -452,7 +447,7 @@ const GameManagerScreen = ({ navigation, route }) => {
         createdAt: new Date(),
       });
     }
-    // === 참가자 attendCnt +1 및 승패 통계 자동 저장 ===
+    // === 참가자 attendCnt +1 ===
     // 모든 게임의 모든 참가자 userId를 중복 없이 추출
     const allUserIds = new Set();
     games.forEach(game => {
@@ -460,89 +455,92 @@ const GameManagerScreen = ({ navigation, route }) => {
         if (p?.userId) allUserIds.add(p.userId);
       });
     });
-
-    // 통계 계산 및 승패 데이터 준비
-    const stats = {};
-    attendees.forEach(a => {
-      stats[a.userId] = {
-        userId: a.userId,
-        name: a.userName,
-        win: 0,
-        draw: 0,
-        lose: 0,
-        point: 0,
-        scoreDiff: 0,
-      };
-    });
-
-    games.forEach(game => {
-      const s1 = parseInt(game.result[0], 10);
-      const s2 = parseInt(game.result[1], 10);
-
-      let team1 = [], team2 = [];
-      if (game.type === 'single') {
-        team1 = [game.players[0]];
-        team2 = [game.players[1]];
-      } else {
-        team1 = [game.players[0], game.players[1]];
-        team2 = [game.players[2], game.players[3]];
-      }
-
-      let result1, result2;
-      if (s1 > s2) {
-        result1 = 'win'; result2 = 'lose';
-      } else if (s1 < s2) {
-        result1 = 'lose'; result2 = 'win';
-      } else {
-        result1 = result2 = 'draw';
-      }
-
-      team1.forEach(p => {
-        if (!p?.userId) return;
-        stats[p.userId][result1]++;
-        stats[p.userId].point += result1 === 'win' ? 2 : result1 === 'draw' ? 1 : 0;
-        stats[p.userId].scoreDiff += s1 - s2;
-      });
-      team2.forEach(p => {
-        if (!p?.userId) return;
-        stats[p.userId][result2]++;
-        stats[p.userId].point += result2 === 'win' ? 2 : result2 === 'draw' ? 1 : 0;
-        stats[p.userId].scoreDiff += s2 - s1;
-      });
-    });
-
-    // 승패 통계를 users 컬렉션에 자동 저장
+    // users 컬렉션에서 각 userId의 attendCnt를 누적으로 +1
     for (const userId of allUserIds) {
       const userRef = doc(db, 'users', userId);
-      const userStats = stats[userId];
-      if (userStats) {
-        // 전투력 계산: 참석 +1, 승리 +30, 무승부 +20, 패배 +10
-        const abilityBonus = 10 + (userStats.win * 30) + (userStats.draw * 20) + (userStats.lose * 10);
-        
-        await updateDoc(userRef, { 
-          attendCnt: increment(1), 
-          winCnt: increment(userStats.win),
-          drawCnt: increment(userStats.draw),
-          lossCnt: increment(userStats.lose),
-          ability: increment(abilityBonus)
-        });
-      }
+      await updateDoc(userRef, { attendCnt: increment(1), ability: increment(10) });
     }
-
     setIsResultSaved(true);
 
-    // 통계 표시용 데이터 준비
-    const statArr = Object.values(stats);
-    statArr.sort((a, b) => b.point - a.point || b.scoreDiff - a.scoreDiff);
-    statArr.forEach((s, i) => { s.rank = i + 1; });
+    // 통계 계산 함수
+    const showStats = () => {
+      const stats = {};
+      attendees.forEach(a => {
+        stats[a.userId] = {
+          userId: a.userId,
+          name: a.userName,
+          win: 0,
+          draw: 0,
+          lose: 0,
+          point: 0,
+          scoreDiff: 0,
+        };
+      });
 
-    setStatArr(statArr);
-    setShowStatsModal(true);
+      games.forEach(game => {
+        const s1 = parseInt(game.result[0], 10);
+        const s2 = parseInt(game.result[1], 10);
 
-    Alert.alert('저장 완료', '게임 결과와 승패 통계가 모두 저장되었습니다.');
+        let team1 = [], team2 = [];
+        if (game.type === 'single') {
+          team1 = [game.players[0]];
+          team2 = [game.players[1]];
+        } else {
+          team1 = [game.players[0], game.players[1]];
+          team2 = [game.players[2], game.players[3]];
+        }
+
+        let result1, result2;
+        if (s1 > s2) {
+          result1 = 'win'; result2 = 'lose';
+        } else if (s1 < s2) {
+          result1 = 'lose'; result2 = 'win';
+        } else {
+          result1 = result2 = 'draw';
+        }
+
+        team1.forEach(p => {
+          if (!p?.userId) return;
+          stats[p.userId][result1]++;
+          stats[p.userId].point += result1 === 'win' ? 2 : result1 === 'draw' ? 1 : 0;
+          stats[p.userId].scoreDiff += s1 - s2;
+        });
+        team2.forEach(p => {
+          if (!p?.userId) return;
+          stats[p.userId][result2]++;
+          stats[p.userId].point += result2 === 'win' ? 2 : result2 === 'draw' ? 1 : 0;
+          stats[p.userId].scoreDiff += s2 - s1;
+        });
+      });
+
+      const statArr = Object.values(stats);
+      statArr.sort((a, b) => b.point - a.point || b.scoreDiff - a.scoreDiff);
+      statArr.forEach((s, i) => { s.rank = i + 1; });
+
+      setStatArr(statArr);
+      setShowStatsModal(true);
+    };
+
+    Alert.alert('저장 완료', '게임 결과가 저장되었습니다.', [
+      { text: 'OK', onPress: showStats }
+    ]);
   };
 
-
+  const handleUpdateStats = async () => {
+    if (isUpdateStatsDisabled) return;
+    for (const stat of statArr) {
+      if (!stat.userId) continue;
+      const userRef = doc(db, 'users', stat.userId);
+      await updateDoc(userRef, {
+        winCnt: increment(stat.win),
+        drawCnt: increment(stat.draw),
+        lossCnt: increment(stat.lose),
+        ability: increment(stat.win * 30 + stat.draw * 20 + stat.lose * 10),
+      });
+    }
+    setIsUpdateStatsDisabled(true);
+    Alert.alert('업데이트 완료', '참석자별 승/무/패가 누적으로 저장되었습니다.');
+  };
 
   return (
     <ScrollView style={styles.container}>
@@ -641,148 +639,159 @@ const GameManagerScreen = ({ navigation, route }) => {
             {/* 2열: 참석자 선택 */}
             <View style={styles.gameGridCellWide}>
               <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
-                <TouchableOpacity
-                  style={[
-                    styles.playerSelectButton,
-                    isResultSaved && styles.playerSelectButtonDisabled
-                  ]}
-                  onPress={() => {
-                    if (!isResultSaved) {
-                      // 플레이어 선택 모달 표시 로직
-                      setSelectedRowIdx(rowIdx);
-                      setSelectedPlayerIdx(0);
-                      setShowPlayerModal(true);
+                <RNPickerSelect
+                  onValueChange={userId => handleSelectPlayer(rowIdx, 0, userId)}
+                  items={getAvailableAttendees(rowIdx, 0).map(a => ({
+                    label: a.userName,
+                    value: a.userId
+                  }))}
+                  value={game.players[0]?.userId || ''}
+                  placeholder={{ label: '선택', value: '' }}
+                  style={{
+                    ...pickerSelectStyles,
+                    inputAndroid: {
+                      ...pickerSelectStyles.inputAndroid,
+                      zIndex: 10 - 0,
+                      position: 'relative',
+                      opacity: isResultSaved ? 0.5 : 1,
+                      backgroundColor: isResultSaved ? '#f5f5f5' : '#fff',
+                      color: isResultSaved ? '#999' : '#222',
+                    },
+                    inputIOS: {
+                      ...pickerSelectStyles.inputIOS,
+                      zIndex: 10 - 0,
+                      position: 'relative',
+                      opacity: isResultSaved ? 0.5 : 1,
+                      backgroundColor: isResultSaved ? '#f5f5f5' : '#fff',
+                      color: isResultSaved ? '#999' : '#222',
+                    },
+                    placeholder: {
+                      color: isResultSaved ? '#bbb' : '#222',
+                      textAlign: 'center',
                     }
                   }}
+                  useNativeAndroidPickerStyle={false}
                   disabled={isResultSaved}
-                >
-                  <Text style={[
-                    styles.playerSelectText,
-                    isResultSaved && styles.playerSelectTextDisabled
-                  ]} numberOfLines={2}>
-                    {game.players[0]?.userName ? 
-                      (game.players[0].userName.length > 4 ? 
-                        game.players[0].userName.substring(0, 4) : 
-                        game.players[0].userName) : 
-                      '선택'}
-                  </Text>
-                  <Ionicons 
-                    name="chevron-down" 
-                    size={16} 
-                    color={isResultSaved ? '#999' : '#666'} 
-                    style={{ marginLeft: 4 }}
-                  />
-                </TouchableOpacity>
+                />
                 {game.type === 'double' && (
-                  <TouchableOpacity
-                    style={[
-                      styles.playerSelectButton,
-                      isResultSaved && styles.playerSelectButtonDisabled
-                    ]}
-                    onPress={() => {
-                      if (!isResultSaved) {
-                        setSelectedRowIdx(rowIdx);
-                        setSelectedPlayerIdx(1);
-                        setShowPlayerModal(true);
+                  <RNPickerSelect
+                    onValueChange={userId => handleSelectPlayer(rowIdx, 1, userId)}
+                    items={getAvailableAttendees(rowIdx, 1).map(a => ({
+                      label: a.userName,
+                      value: a.userId
+                    }))}
+                    value={game.players[1]?.userId || ''}
+                    placeholder={{ label: '선택', value: '' }}
+                    style={{
+                      ...pickerSelectStyles,
+                      inputAndroid: {
+                        ...pickerSelectStyles.inputAndroid,
+                        zIndex: 10 - 1,
+                        position: 'relative',
+                        opacity: isResultSaved ? 0.5 : 1,
+                        backgroundColor: isResultSaved ? '#f5f5f5' : '#fff',
+                        color: isResultSaved ? '#999' : '#222',
+                      },
+                      inputIOS: {
+                        ...pickerSelectStyles.inputIOS,
+                        zIndex: 10 - 1,
+                        position: 'relative',
+                        opacity: isResultSaved ? 0.5 : 1,
+                        backgroundColor: isResultSaved ? '#f5f5f5' : '#fff',
+                        color: isResultSaved ? '#999' : '#222',
+                      },
+                      placeholder: {
+                        color: isResultSaved ? '#bbb' : '#222',
+                        textAlign: 'center',
                       }
                     }}
+                    useNativeAndroidPickerStyle={false}
                     disabled={isResultSaved}
-                  >
-                    <Text style={[
-                      styles.playerSelectText,
-                      isResultSaved && styles.playerSelectTextDisabled
-                    ]} numberOfLines={2}>
-                      {game.players[1]?.userName ? 
-                        (game.players[1].userName.length > 4 ? 
-                          game.players[1].userName.substring(0, 4) : 
-                          game.players[1].userName) : 
-                        '선택'}
-                    </Text>
-                    <Ionicons 
-                      name="chevron-down" 
-                      size={16} 
-                      color={isResultSaved ? '#999' : '#666'} 
-                      style={{ marginLeft: 4 }}
-                    />
-                  </TouchableOpacity>
+                  />
                 )}
               </View>
             </View>
             {/* 3열: 참석자 선택 */}
             <View style={styles.gameGridCellWide}>
               <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
-                <TouchableOpacity
-                  style={[
-                    styles.playerSelectButton,
-                    isResultSaved && styles.playerSelectButtonDisabled
-                  ]}
-                  onPress={() => {
-                    if (!isResultSaved) {
-                      setSelectedRowIdx(rowIdx);
-                      setSelectedPlayerIdx(game.type === 'single' ? 1 : 2);
-                      setShowPlayerModal(true);
+                <RNPickerSelect
+                  onValueChange={userId => handleSelectPlayer(rowIdx, game.type === 'single' ? 1 : 2, userId)}
+                  items={getAvailableAttendees(rowIdx, game.type === 'single' ? 1 : 2).map(a => ({
+                    label: a.userName,
+                    value: a.userId
+                  }))}
+                  value={game.players[game.type === 'single' ? 1 : 2]?.userId || ''}
+                  placeholder={{ label: '선택', value: '' }}
+                  style={{
+                    ...pickerSelectStyles,
+                    inputAndroid: {
+                      ...pickerSelectStyles.inputAndroid,
+                      zIndex: 10 - (game.type === 'single' ? 1 : 2),
+                      position: 'relative',
+                      opacity: isResultSaved ? 0.5 : 1,
+                      backgroundColor: isResultSaved ? '#f5f5f5' : '#fff',
+                      color: isResultSaved ? '#999' : '#222',
+                    },
+                    inputIOS: {
+                      ...pickerSelectStyles.inputIOS,
+                      zIndex: 10 - (game.type === 'single' ? 1 : 2),
+                      position: 'relative',
+                      opacity: isResultSaved ? 0.5 : 1,
+                      backgroundColor: isResultSaved ? '#f5f5f5' : '#fff',
+                      color: isResultSaved ? '#999' : '#222',
+                    },
+                    placeholder: {
+                      color: isResultSaved ? '#bbb' : '#222',
+                      textAlign: 'center',
                     }
                   }}
+                  useNativeAndroidPickerStyle={false}
                   disabled={isResultSaved}
-                >
-                  <Text style={[
-                    styles.playerSelectText,
-                    isResultSaved && styles.playerSelectTextDisabled
-                  ]} numberOfLines={2}>
-                    {game.players[game.type === 'single' ? 1 : 2]?.userName ? 
-                      (game.players[game.type === 'single' ? 1 : 2].userName.length > 4 ? 
-                        game.players[game.type === 'single' ? 1 : 2].userName.substring(0, 4) : 
-                        game.players[game.type === 'single' ? 1 : 2].userName) : 
-                      '선택'}
-                  </Text>
-                  <Ionicons 
-                    name="chevron-down" 
-                    size={16} 
-                    color={isResultSaved ? '#999' : '#666'} 
-                    style={{ marginLeft: 4 }}
-                  />
-                </TouchableOpacity>
+                />
                 {game.type === 'double' && (
-                  <TouchableOpacity
-                    style={[
-                      styles.playerSelectButton,
-                      isResultSaved && styles.playerSelectButtonDisabled
-                    ]}
-                    onPress={() => {
-                      if (!isResultSaved) {
-                        setSelectedRowIdx(rowIdx);
-                        setSelectedPlayerIdx(3);
-                        setShowPlayerModal(true);
+                  <RNPickerSelect
+                    onValueChange={userId => handleSelectPlayer(rowIdx, 3, userId)}
+                    items={getAvailableAttendees(rowIdx, 3).map(a => ({
+                      label: a.userName,
+                      value: a.userId
+                    }))}
+                    value={game.players[3]?.userId || ''}
+                    placeholder={{ label: '선택', value: '' }}
+                    style={{
+                      ...pickerSelectStyles,
+                      inputAndroid: {
+                        ...pickerSelectStyles.inputAndroid,
+                        zIndex: 10 - 3,
+                        position: 'relative',
+                        opacity: isResultSaved ? 0.5 : 1,
+                        backgroundColor: isResultSaved ? '#f5f5f5' : '#fff',
+                        color: isResultSaved ? '#999' : '#222',
+                      },
+                      inputIOS: {
+                        ...pickerSelectStyles.inputIOS,
+                        zIndex: 10 - 3,
+                        position: 'relative',
+                        opacity: isResultSaved ? 0.5 : 1,
+                        backgroundColor: isResultSaved ? '#f5f5f5' : '#fff',
+                        color: isResultSaved ? '#999' : '#222',
+                      },
+                      placeholder: {
+                        color: isResultSaved ? '#bbb' : '#222',
+                        textAlign: 'center',
                       }
                     }}
+                    useNativeAndroidPickerStyle={false}
                     disabled={isResultSaved}
-                  >
-                    <Text style={[
-                      styles.playerSelectText,
-                      isResultSaved && styles.playerSelectTextDisabled
-                    ]} numberOfLines={2}>
-                      {game.players[3]?.userName ? 
-                        (game.players[3].userName.length > 4 ? 
-                          game.players[3].userName.substring(0, 4) : 
-                          game.players[3].userName) : 
-                        '선택'}
-                    </Text>
-                    <Ionicons 
-                      name="chevron-down" 
-                      size={16} 
-                      color={isResultSaved ? '#999' : '#666'} 
-                      style={{ marginLeft: 4 }}
-                    />
-                  </TouchableOpacity>
+                  />
                 )}
               </View>
             </View>
           </View>
           {/* 2행 */}
           <View style={[styles.gameGridRow, styles.gameGridRowBottom]}>
-            {/* 1열: "점수" */}
+            {/* 1열: "점수입력" */}
             <View style={styles.gameGridCellDelete}>
-              <Text style={styles.scoreLabel}>점수</Text>
+              <Text style={styles.scoreLabel}>점수입력</Text>
             </View>
             {/* 2열: 점수 입력 */}
             <View style={styles.gameGridCellWide}>
@@ -903,6 +912,26 @@ const GameManagerScreen = ({ navigation, route }) => {
             <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 12 }}>
               <TouchableOpacity
                 style={{
+                  backgroundColor: '#10b981',
+                  borderRadius: 8,
+                  paddingVertical: 8,
+                  paddingHorizontal: 18,
+                  marginRight: 10,
+                  alignSelf: 'center',
+                  opacity: isUpdateStatsDisabled ? 0.5 : 1,
+                }}
+                onPress={handleUpdateStats}
+                disabled={isUpdateStatsDisabled}
+              >
+                <Text style={{
+                  color: '#fff',
+                  fontWeight: 'bold',
+                  textAlign: 'center',
+                  fontSize: 15
+                }}>점수업데이트</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
                   backgroundColor: '#2563eb',
                   borderRadius: 8,
                   paddingVertical: 8,
@@ -919,44 +948,6 @@ const GameManagerScreen = ({ navigation, route }) => {
                 }}>닫기</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* 플레이어 선택 모달 */}
-      <Modal
-        visible={showPlayerModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowPlayerModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.playerModal}>
-            <Text style={styles.playerModalTitle}>플레이어 선택</Text>
-            <FlatList
-              data={selectedRowIdx !== null && selectedPlayerIdx !== null ? getAvailableAttendees(selectedRowIdx, selectedPlayerIdx) : []}
-              keyExtractor={item => item.userId}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.playerItem}
-                  onPress={() => {
-                    if (selectedRowIdx !== null && selectedPlayerIdx !== null) {
-                      handleSelectPlayer(selectedRowIdx, selectedPlayerIdx, item.userId);
-                      setShowPlayerModal(false);
-                    }
-                  }}
-                >
-                  <Text style={styles.playerItemText}>{item.userName}</Text>
-                </TouchableOpacity>
-              )}
-              style={styles.playerList}
-            />
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowPlayerModal(false)}
-            >
-              <Text style={styles.closeButtonText}>닫기</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>

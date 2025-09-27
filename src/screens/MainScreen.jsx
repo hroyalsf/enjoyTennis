@@ -82,9 +82,15 @@ const MainScreen = ({ navigation, route }) => {
   };
 
   const getMenuItems = () => {
-    // userStat이 100이면 로그아웃만 보이게
-    if (user && user.userStat === 100) {
+    // authGroup이 BAS02인 경우 내정보와 로그아웃만 보이게
+    if (user && user.authGroup === 'BAS02') {
       return [
+        {
+          text: '내 정보',
+          icon: 'user',
+          path: 'Profile',
+          params: { userId: route.params?.userId }
+        },
         {
           text: '로그아웃',
           icon: 'log-out',

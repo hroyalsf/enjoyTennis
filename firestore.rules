@@ -1,34 +1,21 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 인증된 사용자 확인 함수
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    // users 컬렉션 규칙
-    match /users/{userId} {
-      allow read, write: if true;
-    }
-
-    // teams 컬렉션과 하위 컬렉션 규칙
+    // 1. teams 컬렉션: 누구나 읽기 허용, 쓰기는 인증 필요
     match /teams/{teamId} {
-      allow read, write: if true;
-      
-      // teamCourtSet 서브컬렉션에 대한 규칙
-      match /teamCourtSet/{document=**} {
-        allow read, write: if true;
-      }
-      
-      // playPlan 서브컬렉션에 대한 규칙
-      match /playPlan/{document=**} {
-        allow read, write: if true;
-      }
+      allow read: if true; // 인증 없이 읽기 허용
+      allow write: if request.auth != null; // 인증된 사용자만 쓰기
     }
 
-    // courtM 컬렉션 규칙
-    match /courtM/{document=**} {
-      allow read: if true;
+    // 2. users 컬렉션: 본인만 읽기/쓰기 가능
+    match /users/{userId} {
+      allow read, update, delete: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null;
+    }
+  
+    // 3. 기타 모든 컬렉션/문서: 인증된 사용자만 read/write 가능
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
-} 
+}
