@@ -67,7 +67,13 @@
             },
             "ndkVersion": "28.0.12077973",
             "buildToolsVersion": "34.0.0",
-            "enableR8": true
+            "enableR8": true,
+            "gradleProperties": {
+              "org.gradle.jvmargs": "-Xmx8g -XX:MaxMetaspaceSize=2048m -XX:+HeapDumpOnOutOfMemoryError",
+              "org.gradle.daemon": "true",
+              "org.gradle.parallel": "true",
+              "android.lint.checkReleaseBuilds": "false"
+            }
           }
         }
       ]
