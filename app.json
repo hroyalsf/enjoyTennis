@@ -59,7 +59,7 @@
             "enableShrinkResourcesInReleaseBuilds": true,
             "enableHermes": true,
             "enableNewArchitecture": true,
-            "enable16KbPageSize": false,
+            "enable16KbPageSize": true,
             "packagingOptions": {
               "jniLibs": {
                 "useLegacyPackaging": false
