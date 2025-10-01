@@ -28,7 +28,7 @@
       "env": {
         "EXPO_PUBLIC_16KB_PAGE_SIZE": "true",
         "ANDROID_NDK_VERSION": "28.0.12077973",
-        "GRADLE_OPTS": "-Xmx4g -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError",
+        "GRADLE_OPTS": "-Xmx6g -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError",
         "ANDROID_BUILD_TOOLS_VERSION": "34.0.0",
         "EXPO_PUBLIC_NEW_ARCHITECTURE": "true",
         "EXPO_PUBLIC_HERMES": "true"
