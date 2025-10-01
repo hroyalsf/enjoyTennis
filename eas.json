@@ -23,8 +23,7 @@
     "production": {
       "android": {
         "buildType": "app-bundle",
-        "gradleCommand": ":app:bundleRelease",
-        "gradleParams": "GRADLE_OPTS='-Xmx12g -XX:MaxMetaspaceSize=4096m -XX:+HeapDumpOnOutOfMemoryError'"
+        "gradleCommand": ":app:bundleRelease"
       },
       "env": {
         "EXPO_PUBLIC_16KB_PAGE_SIZE": "false",
@@ -34,6 +33,8 @@
         "GRADLE_DAEMON_OPTS": "-Xmx12g -XX:MaxMetaspaceSize=4096m",
         "GRADLE_JVM_OPTS": "-Xmx12g -XX:MaxMetaspaceSize=4096m",
         "GRADLE_OPTS_DAEMON": "-Xmx12g -XX:MaxMetaspaceSize=4096m",
+        "GRADLE_USER_HOME": "/tmp/gradle",
+        "GRADLE_DAEMON": "true",
         "ANDROID_BUILD_TOOLS_VERSION": "34.0.0",
         "EXPO_PUBLIC_NEW_ARCHITECTURE": "true",
         "EXPO_PUBLIC_HERMES": "true",
