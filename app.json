@@ -48,6 +48,7 @@
     "owner": "royalsf",
     "newArchEnabled": true,
     "plugins": [
+      "./plugins/withGradleJvmArgs",
       [
         "expo-build-properties",
         {
@@ -67,14 +68,7 @@
             },
             "ndkVersion": "28.0.12077973",
             "buildToolsVersion": "34.0.0",
-            "enableR8": true,
-            "gradleProperties": {
-              "org.gradle.jvmargs": "-Xmx12g -XX:MaxMetaspaceSize=4096m -XX:+HeapDumpOnOutOfMemoryError",
-              "org.gradle.daemon": "true",
-              "org.gradle.parallel": "true",
-              "android.lint.checkReleaseBuilds": "false",
-              "org.gradle.workers.max": "4"
-            }
+            "enableR8": true
           }
         }
       ]
