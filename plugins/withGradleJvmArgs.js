@@ -1,5 +1,5 @@
 // plugins/withGradleJvmArgs.js
-const { withGradleProperties } = require('@expo/config-plugins');
+const { withGradleProperties } = require('expo/config-plugins');
 
 module.exports = function withGradleJvmArgs(config) {
   return withGradleProperties(config, (config) => {
