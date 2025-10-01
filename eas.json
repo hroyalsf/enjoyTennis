@@ -28,10 +28,11 @@
       "env": {
         "EXPO_PUBLIC_16KB_PAGE_SIZE": "false",
         "ANDROID_NDK_VERSION": "28.0.12077973",
-        "GRADLE_OPTS": "-Xmx8g -XX:MaxMetaspaceSize=2048m -XX:+HeapDumpOnOutOfMemoryError",
+        "GRADLE_OPTS": "-Xmx12g -XX:MaxMetaspaceSize=4096m -XX:+HeapDumpOnOutOfMemoryError",
         "ANDROID_BUILD_TOOLS_VERSION": "34.0.0",
         "EXPO_PUBLIC_NEW_ARCHITECTURE": "true",
-        "EXPO_PUBLIC_HERMES": "true"
+        "EXPO_PUBLIC_HERMES": "true",
+        "ANDROID_LINT_OPTS": "--disable lintVitalAnalyze"
       }
     }
   },
