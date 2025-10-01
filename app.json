@@ -59,7 +59,7 @@
             "enableShrinkResourcesInReleaseBuilds": true,
             "enableHermes": true,
             "enableNewArchitecture": true,
-            "enable16KbPageSize": true,
+            "enable16KbPageSize": false,
             "packagingOptions": {
               "jniLibs": {
                 "useLegacyPackaging": false
@@ -69,10 +69,11 @@
             "buildToolsVersion": "34.0.0",
             "enableR8": true,
             "gradleProperties": {
-              "org.gradle.jvmargs": "-Xmx8g -XX:MaxMetaspaceSize=2048m -XX:+HeapDumpOnOutOfMemoryError",
+              "org.gradle.jvmargs": "-Xmx12g -XX:MaxMetaspaceSize=4096m -XX:+HeapDumpOnOutOfMemoryError",
               "org.gradle.daemon": "true",
               "org.gradle.parallel": "true",
-              "android.lint.checkReleaseBuilds": "false"
+              "android.lint.checkReleaseBuilds": "false",
+              "org.gradle.workers.max": "4"
             }
           }
         }
